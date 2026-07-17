@@ -1,0 +1,8 @@
+MachineName,Role,Owner,Criticality
+Admin-PC,Administrator Workstation,IT Administrator,High
+CEO-PC,Executive Workstation,CEO,Critical
+CFO-PC,Finance Workstation,CFO,Critical
+HR-PC,HR Workstation,HR Department,High
+SERVER-01,Database Server,IT Department,Critical
+SERVER-02,File Server,IT Department,High
+TEST-PC,Testing Workstation,Development Team,Low
