@@ -6,76 +6,93 @@ def create_machine_overview(
     alerts: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Create a beginner-friendly summary of activity for every machine.
+    Create a device-level overview using normalized security logs.
 
-    The summary includes:
+    The overview contains:
     - total events
-    - information events
-    - warning events
-    - error events
-    - detected alerts
-    - high-severity alerts
+    - informational events
+    - medium-severity events
+    - high-severity events
+    - total alerts
+    - medium alerts
+    - high alerts
     - most active event source
     """
 
     required_log_columns = {
-        "MachineName",
-        "Source",
-        "EntryType",
+        "DeviceName",
+        "EventSource",
+        "EventSeverity",
     }
 
     missing_columns = required_log_columns - set(logs.columns)
 
     if missing_columns:
         raise ValueError(
-            f"Missing required log columns: {sorted(missing_columns)}"
+            "Normalized logs are missing overview columns: "
+            f"{sorted(missing_columns)}"
         )
 
     working_logs = logs.copy()
 
-    # Normalize event type values such as Error, ERROR and error.
-    working_logs["EntryTypeNormalized"] = (
-        working_logs["EntryType"]
+    working_logs["EventSeverityNormalized"] = (
+        working_logs["EventSeverity"]
         .astype(str)
         .str.strip()
         .str.lower()
     )
 
-    # Count all events for every machine.
+    working_logs["DeviceName"] = (
+        working_logs["DeviceName"]
+        .astype(str)
+        .str.strip()
+    )
+
+    working_logs["EventSource"] = (
+        working_logs["EventSource"]
+        .astype(str)
+        .str.strip()
+    )
+
+    # Count all events for every device.
     total_events = (
-        working_logs.groupby("MachineName")
+        working_logs.groupby("DeviceName")
         .size()
         .rename("TotalEvents")
     )
 
-    # Count event types for every machine.
-    event_counts = (
-        working_logs.pivot_table(
-            index="MachineName",
-            columns="EntryTypeNormalized",
-            values="Source",
-            aggfunc="count",
-            fill_value=0,
-        )
+    # Count events by normalized severity.
+    severity_counts = working_logs.pivot_table(
+        index="DeviceName",
+        columns="EventSeverityNormalized",
+        values="EventSource",
+        aggfunc="count",
+        fill_value=0,
     )
 
-    # Ensure these columns exist even when a dataset has none of that type.
-    for event_type in ["information", "warning", "error"]:
-        if event_type not in event_counts.columns:
-            event_counts[event_type] = 0
+    for severity in [
+        "informational",
+        "medium",
+        "high",
+    ]:
+        if severity not in severity_counts.columns:
+            severity_counts[severity] = 0
 
-    event_counts = event_counts.rename(
+    severity_counts = severity_counts.rename(
         columns={
-            "information": "InformationEvents",
-            "warning": "WarningEvents",
-            "error": "ErrorEvents",
+            "informational": "InformationEvents",
+            "medium": "WarningEvents",
+            "high": "ErrorEvents",
         }
     )
 
-    # Find the source that generated the most events on each machine.
+    # Find the most active source for each device.
     source_counts = (
         working_logs.groupby(
-            ["MachineName", "Source"],
+            [
+                "DeviceName",
+                "EventSource",
+            ],
             dropna=False,
         )
         .size()
@@ -87,17 +104,22 @@ def create_machine_overview(
             by="SourceEventCount",
             ascending=False,
         )
-        .drop_duplicates(subset=["MachineName"])
-        .set_index("MachineName")[["Source", "SourceEventCount"]]
+        .drop_duplicates(subset=["DeviceName"])
+        .set_index("DeviceName")[
+            [
+                "EventSource",
+                "SourceEventCount",
+            ]
+        ]
         .rename(
             columns={
-                "Source": "MostActiveSource",
+                "EventSource": "MostActiveSource",
                 "SourceEventCount": "MostActiveSourceEvents",
             }
         )
     )
 
-    # Count generated alerts for each machine.
+    # Count generated alerts for every device.
     if alerts.empty:
         alert_summary = pd.DataFrame(
             index=total_events.index,
@@ -109,26 +131,47 @@ def create_machine_overview(
         )
 
     else:
+        required_alert_columns = {
+            "DeviceName",
+            "Severity",
+        }
+
+        missing_alert_columns = (
+            required_alert_columns - set(alerts.columns)
+        )
+
+        if missing_alert_columns:
+            raise ValueError(
+                "Alerts are missing overview columns: "
+                f"{sorted(missing_alert_columns)}"
+            )
+
         total_alerts = (
-            alerts.groupby("MachineName")
+            alerts.groupby("DeviceName")
             .size()
             .rename("TotalAlerts")
         )
 
         high_alerts = (
             alerts[
-                alerts["Severity"].astype(str).str.lower() == "high"
+                alerts["Severity"]
+                .astype(str)
+                .str.lower()
+                == "high"
             ]
-            .groupby("MachineName")
+            .groupby("DeviceName")
             .size()
             .rename("HighSeverityAlerts")
         )
 
         medium_alerts = (
             alerts[
-                alerts["Severity"].astype(str).str.lower() == "medium"
+                alerts["Severity"]
+                .astype(str)
+                .str.lower()
+                == "medium"
             ]
-            .groupby("MachineName")
+            .groupby("DeviceName")
             .size()
             .rename("MediumSeverityAlerts")
         )
@@ -145,7 +188,7 @@ def create_machine_overview(
     machine_overview = pd.concat(
         [
             total_events,
-            event_counts[
+            severity_counts[
                 [
                     "InformationEvents",
                     "WarningEvents",
@@ -170,7 +213,8 @@ def create_machine_overview(
     ]
 
     machine_overview[integer_columns] = (
-        machine_overview[integer_columns].astype(int)
+        machine_overview[integer_columns]
+        .astype(int)
     )
 
     machine_overview = (
@@ -184,6 +228,7 @@ def create_machine_overview(
             ],
             ascending=False,
         )
+        .reset_index(drop=True)
     )
 
     return machine_overview

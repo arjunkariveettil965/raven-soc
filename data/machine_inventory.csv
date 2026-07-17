@@ -1,4 +1,4 @@
-MachineName,Role,Owner,Criticality
+DeviceName,DeviceRole,DeviceOwner,DeviceCriticality
 Admin-PC,Administrator Workstation,IT Administrator,High
 CEO-PC,Executive Workstation,CEO,Critical
 CFO-PC,Finance Workstation,CFO,Critical

@@ -10,6 +10,10 @@ from incidents.machine_ranking import (
     add_most_common_event_type,
     calculate_machine_risk,
 )
+from ingestion.normalizer import normalize_windows_event_logs
+from response.response_engine import (
+    generate_response_recommendations,
+)
 
 
 st.set_page_config(
@@ -19,10 +23,11 @@ st.set_page_config(
 )
 
 st.title("🛡️ AI-SOC Platform")
-st.subheader("Autonomous Security Operations Platform for SMEs")
+st.subheader("GenAI-Driven Security Operations Platform for SMEs")
 
 st.info(
-    "Upload a security log file to inspect events and begin threat analysis."
+    "Upload a security log file to normalize, inspect, detect threats, "
+    "rank affected devices and generate response recommendations."
 )
 
 uploaded_file = st.file_uploader(
@@ -32,20 +37,32 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     try:
+        # ---------------------------------------------------------
+        # Load and clean raw logs
+        # ---------------------------------------------------------
         logs = pd.read_csv(uploaded_file)
 
-        # Remove an unnecessary CSV index column if present.
         if "Unnamed: 0" in logs.columns:
             logs = logs.drop(columns=["Unnamed: 0"])
 
-        st.success("Security log uploaded successfully.")
+        if logs.empty:
+            raise pd.errors.EmptyDataError
+
+        # ---------------------------------------------------------
+        # Normalize logs
+        # ---------------------------------------------------------
+        normalized_logs = normalize_windows_event_logs(logs)
+
+        st.success(
+            "Security log uploaded and normalized successfully."
+        )
 
         # ---------------------------------------------------------
         # Log overview
         # ---------------------------------------------------------
         st.subheader("Log Overview")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         col1.metric(
             "Total Events",
@@ -53,19 +70,30 @@ if uploaded_file is not None:
         )
 
         col2.metric(
-            "Total Columns",
+            "Raw Columns",
             len(logs.columns),
         )
 
         col3.metric(
-            "Missing Values",
-            int(logs.isnull().sum().sum()),
+            "Normalized Columns",
+            len(normalized_logs.columns),
+        )
+
+        col4.metric(
+            "Devices Identified",
+            normalized_logs["DeviceName"].nunique(
+                dropna=True
+            ),
         )
 
         # ---------------------------------------------------------
-        # Raw security events
+        # Raw events
         # ---------------------------------------------------------
-        st.subheader("Security Events")
+        st.subheader("Raw Security Events")
+
+        st.caption(
+            "Original events as received from the uploaded dataset."
+        )
 
         st.dataframe(
             logs,
@@ -74,27 +102,98 @@ if uploaded_file is not None:
         )
 
         # ---------------------------------------------------------
-        # Column information
+        # Raw column information
         # ---------------------------------------------------------
-        st.subheader("Column Information")
+        st.subheader("Raw Column Information")
 
-        column_summary = pd.DataFrame(
+        raw_column_summary = pd.DataFrame(
             {
                 "Column": logs.columns,
                 "Data Type": logs.dtypes.astype(str).values,
                 "Missing Values": logs.isnull().sum().values,
-                "Unique Values": logs.nunique().values,
+                "Unique Values": logs.nunique(
+                    dropna=True
+                ).values,
             }
         )
 
         st.dataframe(
-            column_summary,
+            raw_column_summary,
             width="stretch",
             hide_index=True,
         )
 
         # ---------------------------------------------------------
-        # Detection controls
+        # Normalized events
+        # ---------------------------------------------------------
+        st.subheader("Normalized Security Events")
+
+        st.caption(
+            "Events converted into the common AI-SOC schema. "
+            "Unavailable source fields remain empty."
+        )
+
+        normalized_col1, normalized_col2, normalized_col3 = (
+            st.columns(3)
+        )
+
+        normalized_col1.metric(
+            "Normalized Events",
+            len(normalized_logs),
+        )
+
+        normalized_col2.metric(
+            "Events With Valid Time",
+            int(
+                normalized_logs["EventTime"]
+                .notna()
+                .sum()
+            ),
+        )
+
+        normalized_col3.metric(
+            "Event Sources",
+            normalized_logs["EventSource"].nunique(
+                dropna=True
+            ),
+        )
+
+        st.dataframe(
+            normalized_logs,
+            width="stretch",
+            hide_index=True,
+        )
+
+        with st.expander("View Normalized Schema Details"):
+            normalized_summary = pd.DataFrame(
+                {
+                    "Normalized Field": normalized_logs.columns,
+                    "Data Type": (
+                        normalized_logs.dtypes
+                        .astype(str)
+                        .values
+                    ),
+                    "Missing Values": (
+                        normalized_logs.isnull()
+                        .sum()
+                        .values
+                    ),
+                    "Unique Values": (
+                        normalized_logs.nunique(
+                            dropna=True
+                        ).values
+                    ),
+                }
+            )
+
+            st.dataframe(
+                normalized_summary,
+                width="stretch",
+                hide_index=True,
+            )
+
+        # ---------------------------------------------------------
+        # Detection settings
         # ---------------------------------------------------------
         st.subheader("Detection Settings")
 
@@ -117,10 +216,10 @@ if uploaded_file is not None:
             )
 
         # ---------------------------------------------------------
-        # Source-level alert detection
+        # Detection using normalized logs
         # ---------------------------------------------------------
         alerts = detect_event_bursts(
-            logs,
+            normalized_logs,
             threshold=threshold,
             window_minutes=window_minutes,
         )
@@ -129,7 +228,8 @@ if uploaded_file is not None:
 
         if alerts.empty:
             st.success(
-                "No repeated warning or error bursts were detected."
+                "No repeated medium or high-severity event bursts "
+                "were detected."
             )
 
         else:
@@ -142,12 +242,20 @@ if uploaded_file is not None:
 
             alert_col2.metric(
                 "High Severity",
-                int((alerts["Severity"] == "High").sum()),
+                int(
+                    (
+                        alerts["Severity"] == "High"
+                    ).sum()
+                ),
             )
 
             alert_col3.metric(
                 "Medium Severity",
-                int((alerts["Severity"] == "Medium").sum()),
+                int(
+                    (
+                        alerts["Severity"] == "Medium"
+                    ).sum()
+                ),
             )
 
             st.dataframe(
@@ -157,50 +265,56 @@ if uploaded_file is not None:
             )
 
         # ---------------------------------------------------------
-        # Machine-level overview
+        # Device overview
         # ---------------------------------------------------------
-        st.subheader("Machine Overview")
+        st.subheader("Device Overview")
 
         machine_overview = create_machine_overview(
-            logs=logs,
+            logs=normalized_logs,
             alerts=alerts,
         )
 
-        # Load business-role and criticality information.
-        inventory_path = Path("data/machine_inventory.csv")
+        inventory_path = Path(
+            "data/machine_inventory.csv"
+        )
 
         if inventory_path.exists():
-            machine_inventory = pd.read_csv(inventory_path)
+            machine_inventory = pd.read_csv(
+                inventory_path
+            )
 
         else:
             machine_inventory = pd.DataFrame(
                 columns=[
-                    "MachineName",
-                    "Role",
-                    "Owner",
-                    "Criticality",
+                    "DeviceName",
+                    "DeviceRole",
+                    "DeviceOwner",
+                    "DeviceCriticality",
                 ]
             )
 
             st.warning(
                 "machine_inventory.csv was not found. "
-                "Unlisted machines will use default values."
+                "Devices will use default inventory values."
             )
 
-        # Add role, owner and criticality.
         machine_overview = add_machine_inventory(
             machine_overview=machine_overview,
             inventory=machine_inventory,
         )
 
-        # Calculate risk and rank machines.
         machine_ranking = calculate_machine_risk(
             machine_overview=machine_overview,
         )
 
-        # Add the most common event type.
         machine_ranking = add_most_common_event_type(
             machine_ranking=machine_ranking,
+        )
+
+        response_recommendations = (
+            generate_response_recommendations(
+                machine_ranking=machine_ranking,
+            )
         )
 
         machine_col1, machine_col2, machine_col3, machine_col4 = (
@@ -208,44 +322,52 @@ if uploaded_file is not None:
         )
 
         machine_col1.metric(
-            "Machines Monitored",
-            machine_ranking["MachineName"].nunique(),
+            "Devices Monitored",
+            machine_ranking["DeviceName"].nunique(),
         )
 
         machine_col2.metric(
-            "Machines With Alerts",
-            int((machine_ranking["TotalAlerts"] > 0).sum()),
+            "Devices With Alerts",
+            int(
+                (
+                    machine_ranking["TotalAlerts"] > 0
+                ).sum()
+            ),
         )
 
         machine_col3.metric(
-            "Machines With High Alerts",
+            "Devices With High Alerts",
             int(
                 (
-                    machine_ranking["HighSeverityAlerts"] > 0
+                    machine_ranking[
+                        "HighSeverityAlerts"
+                    ]
+                    > 0
                 ).sum()
             ),
         )
 
         machine_col4.metric(
-            "Critical-Risk Machines",
+            "Critical-Risk Devices",
             int(
                 (
-                    machine_ranking["OverallRisk"] == "Critical"
+                    machine_ranking["OverallRisk"]
+                    == "Critical"
                 ).sum()
             ),
         )
 
         # ---------------------------------------------------------
-        # Computer activity ranking
+        # Device risk ranking
         # ---------------------------------------------------------
-        st.subheader("Computer Activity and Risk Ranking")
+        st.subheader("Device Activity and Risk Ranking")
 
         ranking_columns = [
             "Rank",
-            "MachineName",
-            "Role",
-            "Owner",
-            "Criticality",
+            "DeviceName",
+            "DeviceRole",
+            "DeviceOwner",
+            "DeviceCriticality",
             "TotalEvents",
             "InformationEvents",
             "WarningEvents",
@@ -267,52 +389,174 @@ if uploaded_file is not None:
         ]
 
         st.dataframe(
-            machine_ranking[available_ranking_columns],
+            machine_ranking[
+                available_ranking_columns
+            ],
             width="stretch",
             hide_index=True,
         )
 
         # ---------------------------------------------------------
-        # Beginner-friendly machine inspection
+        # Response recommendations
         # ---------------------------------------------------------
-        st.subheader("Inspect a Machine")
+        st.subheader("Response Recommendations")
 
-        selected_machine = st.selectbox(
-            "Select a computer to inspect",
-            options=machine_ranking["MachineName"].tolist(),
+        response_col1, response_col2, response_col3 = (
+            st.columns(3)
         )
 
-        selected_machine_summary = machine_ranking[
-            machine_ranking["MachineName"] == selected_machine
+        response_col1.metric(
+            "Automatic Isolation Decisions",
+            int(
+                (
+                    response_recommendations[
+                        "ResponseMode"
+                    ]
+                    == "Automatic Isolation"
+                ).sum()
+            ),
+        )
+
+        response_col2.metric(
+            "Pending Analyst Approval",
+            int(
+                (
+                    response_recommendations[
+                        "ResponseMode"
+                    ]
+                    == "Analyst Approval Required"
+                ).sum()
+            ),
+        )
+
+        response_col3.metric(
+            "Simulated Isolated Devices",
+            int(
+                (
+                    response_recommendations[
+                        "IsolationStatus"
+                    ]
+                    == "Simulated Isolated"
+                ).sum()
+            ),
+        )
+
+        response_columns = [
+            "DeviceName",
+            "DeviceRole",
+            "DeviceOwner",
+            "DeviceCriticality",
+            "OverallRisk",
+            "HighSeverityAlerts",
+            "MediumSeverityAlerts",
+            "RecommendedAction",
+            "ResponseMode",
+            "IsolationStatus",
+        ]
+
+        available_response_columns = [
+            column
+            for column in response_columns
+            if column in response_recommendations.columns
         ]
 
         st.dataframe(
-            selected_machine_summary[available_ranking_columns],
+            response_recommendations[
+                available_response_columns
+            ],
             width="stretch",
             hide_index=True,
         )
 
-        selected_machine_alerts = alerts[
-            alerts["MachineName"] == selected_machine
+        # ---------------------------------------------------------
+        # Device inspection
+        # ---------------------------------------------------------
+        st.subheader("Inspect a Device")
+
+        selected_device = st.selectbox(
+            "Select a device to inspect",
+            options=machine_ranking[
+                "DeviceName"
+            ].tolist(),
+        )
+
+        selected_device_summary = machine_ranking[
+            machine_ranking["DeviceName"]
+            == selected_device
         ]
 
-        st.markdown("#### Alerts for Selected Machine")
+        st.markdown("#### Device Summary")
 
-        if selected_machine_alerts.empty:
+        st.dataframe(
+            selected_device_summary[
+                available_ranking_columns
+            ],
+            width="stretch",
+            hide_index=True,
+        )
+
+        selected_device_alerts = alerts[
+            alerts["DeviceName"] == selected_device
+        ]
+
+        st.markdown("#### Alerts for Selected Device")
+
+        if selected_device_alerts.empty:
             st.info(
-                "No source-level alerts were generated for this machine."
+                "No source-level alerts were generated "
+                "for this device."
             )
 
         else:
             st.dataframe(
-                selected_machine_alerts,
+                selected_device_alerts,
+                width="stretch",
+                hide_index=True,
+            )
+
+        selected_device_response = (
+            response_recommendations[
+                response_recommendations["DeviceName"]
+                == selected_device
+            ]
+        )
+
+        st.markdown("#### Response Recommendation")
+
+        st.dataframe(
+            selected_device_response[
+                available_response_columns
+            ],
+            width="stretch",
+            hide_index=True,
+        )
+
+        selected_normalized_events = normalized_logs[
+            normalized_logs["DeviceName"]
+            == selected_device
+        ]
+
+        st.markdown(
+            "#### Normalized Events for Selected Device"
+        )
+
+        if selected_normalized_events.empty:
+            st.info(
+                "No normalized events were found "
+                "for this device."
+            )
+
+        else:
+            st.dataframe(
+                selected_normalized_events,
                 width="stretch",
                 hide_index=True,
             )
 
     except ValueError as error:
         st.error(
-            f"Detection or analysis error: {error}"
+            "Normalization, detection, analysis or response "
+            f"error: {error}"
         )
 
     except pd.errors.EmptyDataError:
@@ -322,12 +566,14 @@ if uploaded_file is not None:
 
     except pd.errors.ParserError:
         st.error(
-            "The uploaded file could not be parsed as a valid CSV."
+            "The uploaded file could not be parsed "
+            "as a valid CSV."
         )
 
     except FileNotFoundError as error:
         st.error(
-            f"A required project file could not be found: {error}"
+            "A required project file could not be found: "
+            f"{error}"
         )
 
     except Exception as error:

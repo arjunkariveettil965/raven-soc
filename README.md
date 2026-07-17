@@ -1,40 +1,44 @@
-# AI-SOC: Autonomous Security Operations Platform for SMEs
+# AI-SOC Copilot
 
-## Overview
+A GenAI-driven Security Operations platform for small and medium-sized
+businesses.
 
-AI-SOC is an AI-assisted Security Operations Center (SOC) platform designed for small and medium-sized businesses (SMEs). The platform collects security logs, detects suspicious activities, correlates related alerts into incidents, maps attacks to the MITRE ATT&CK framework, and provides AI-generated investigation summaries with recommended response actions.
+The platform is inspired by Microsoft Sentinel, Microsoft Security
+Copilot, Microsoft Defender XDR and Splunk risk-based alerting.
 
-The objective is to reduce alert fatigue and help organizations without dedicated security teams investigate and respond to cyber threats efficiently.
+## Current Foundation
 
----
+The current version implements the foundational security analytics
+pipeline:
 
-## Features (Planned)
+1. CSV security-log ingestion
+2. ASIM-inspired log normalization
+3. Rule-based event-burst detection
+4. Security alert generation
+5. Device-level event aggregation
+6. Device inventory enrichment
+7. Business-criticality scoring
+8. Device risk ranking
+9. Response recommendations
+10. Simulated device-isolation decisions
 
-- Security log ingestion
-- Rule-based threat detection
-- Incident correlation
-- AI-generated incident summaries
-- MITRE ATT&CK mapping
-- Severity scoring
-- SOC dashboard
-- Response playbooks
-- Cloud deployment
+## Current Architecture
 
----
-
-## Technology Stack
-
-- Python
-- Streamlit
-- Pandas
-- Plotly
-- SQLite
-- Scikit-learn
-- Git & GitHub
-- Azure (Deployment)
-
----
-
-## Project Status
-
-🚧 Phase 1 – Foundation
+```text
+Raw Security Logs
+        ↓
+ASIM-Inspired Normalization
+        ↓
+Rule-Based Detection
+        ↓
+Security Alerts
+        ↓
+Device-Level Aggregation
+        ↓
+Inventory and Criticality Enrichment
+        ↓
+Risk Scoring
+        ↓
+Response Recommendation
+        ↓
+Simulated Isolation
