@@ -1,0 +1,47 @@
+[
+  {
+    "pattern_name": "Brute-Force Attempt",
+    "required_alert_types": ["Failed Login Burst"],
+    "mitre_techniques": ["T1110 - Brute Force"],
+    "summary": "Repeated failed authentication attempts indicate a brute-force attempt.",
+    "investigation_steps": ["Review authentication logs for repeated failures.", "Check whether a successful login followed the burst."],
+    "recommended_action_id": "BLOCK_DESTINATION_IP",
+    "default_severity": "High"
+  },
+  {
+    "pattern_name": "Possible Account Compromise",
+    "required_alert_types": ["Failed Login Burst", "Successful Login After Failures"],
+    "mitre_techniques": ["T1110 - Brute Force", "T1078 - Valid Accounts"],
+    "summary": "A burst of failed logins was followed by a successful login.",
+    "investigation_steps": ["Inspect the successful login context.", "Review the related device and user activity."],
+    "recommended_action_id": "DISABLE_USER",
+    "default_severity": "High"
+  },
+  {
+    "pattern_name": "Account Compromise with Suspicious Execution",
+    "required_alert_types": ["Successful Login After Failures", "Suspicious PowerShell"],
+    "mitre_techniques": ["T1078 - Valid Accounts", "T1059.001 - PowerShell"],
+    "summary": "A successful login was followed by suspicious PowerShell activity.",
+    "investigation_steps": ["Review the suspicious process execution.", "Correlate the login with the later execution events."],
+    "recommended_action_id": "ISOLATE_DEVICE",
+    "default_severity": "Critical"
+  },
+  {
+    "pattern_name": "Multi-Stage Intrusion",
+    "required_alert_types": ["Failed Login Burst", "Successful Login After Failures", "Suspicious PowerShell", "Suspicious Outbound Connection"],
+    "mitre_techniques": ["T1110 - Brute Force", "T1078 - Valid Accounts", "T1059.001 - PowerShell", "T1071 - Application Layer Protocol"],
+    "summary": "The incident combines authentication, execution and network activity across multiple attack stages.",
+    "investigation_steps": ["Review the complete timeline.", "Assess whether the device should be isolated."],
+    "recommended_action_id": "ISOLATE_DEVICE",
+    "default_severity": "Critical"
+  },
+  {
+    "pattern_name": "Possible Malware Execution and Command and Control",
+    "required_alert_types": ["Suspicious PowerShell", "Suspicious Outbound Connection"],
+    "mitre_techniques": ["T1059.001 - PowerShell", "T1071 - Application Layer Protocol"],
+    "summary": "PowerShell execution was followed by suspicious outbound network activity.",
+    "investigation_steps": ["Review the suspicious network destination.", "Confirm whether the endpoint should be isolated."],
+    "recommended_action_id": "ISOLATE_DEVICE",
+    "default_severity": "High"
+  }
+]

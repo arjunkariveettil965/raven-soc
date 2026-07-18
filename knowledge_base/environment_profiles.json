@@ -1,0 +1,57 @@
+{
+  "SME Office": {
+    "environment_name": "SME Office",
+    "critical_roles": ["CEO", "CFO", "IT Manager"],
+    "critical_devices": ["CEO-PC", "CFO-PC"],
+    "normal_working_hours": {"start": "09:00", "end": "17:00"},
+    "approved_admin_tools": ["Endpoint Isolation", "Identity Lock", "Network Control"],
+    "restricted_countries": ["Russia", "China"],
+    "automatic_response_threshold": 70,
+    "critical_devices_require_approval": true,
+    "allowed_automatic_actions": ["COLLECT_EVIDENCE", "INCREASE_MONITORING", "NO_ACTION"]
+  },
+  "Finance SME": {
+    "environment_name": "Finance SME",
+    "critical_roles": ["CFO", "Finance Manager"],
+    "critical_devices": ["CFO-PC", "PAYROLL-SERVER", "FINANCE-SERVER"],
+    "normal_working_hours": {"start": "08:00", "end": "18:00"},
+    "approved_admin_tools": ["Endpoint Isolation", "Identity Lock", "Network Control"],
+    "restricted_countries": ["Russia", "China"],
+    "automatic_response_threshold": 65,
+    "critical_devices_require_approval": true,
+    "allowed_automatic_actions": ["COLLECT_EVIDENCE", "INCREASE_MONITORING", "NO_ACTION"]
+  },
+  "Healthcare": {
+    "environment_name": "Healthcare",
+    "critical_roles": ["Clinician", "Nurse", "IT Lead"],
+    "critical_devices": ["EMR-SERVER", "CLINIC-PC"],
+    "normal_working_hours": {"start": "07:00", "end": "22:00"},
+    "approved_admin_tools": ["Endpoint Isolation", "Identity Lock"],
+    "restricted_countries": ["Russia", "China"],
+    "automatic_response_threshold": 75,
+    "critical_devices_require_approval": true,
+    "allowed_automatic_actions": ["COLLECT_EVIDENCE", "INCREASE_MONITORING", "NO_ACTION"]
+  },
+  "Educational Institution": {
+    "environment_name": "Educational Institution",
+    "critical_roles": ["Administrator", "Dean"],
+    "critical_devices": ["STUDENT-PORTAL", "ADMIN-PC"],
+    "normal_working_hours": {"start": "08:00", "end": "20:00"},
+    "approved_admin_tools": ["Endpoint Isolation", "Identity Lock"],
+    "restricted_countries": ["Russia", "China"],
+    "automatic_response_threshold": 80,
+    "critical_devices_require_approval": true,
+    "allowed_automatic_actions": ["COLLECT_EVIDENCE", "INCREASE_MONITORING", "NO_ACTION"]
+  },
+  "Development Environment": {
+    "environment_name": "Development Environment",
+    "critical_roles": ["Platform Engineer"],
+    "critical_devices": ["DEV-SERVER", "CI-SERVER"],
+    "normal_working_hours": {"start": "09:00", "end": "17:00"},
+    "approved_admin_tools": ["Endpoint Isolation", "Identity Lock"],
+    "restricted_countries": ["Russia", "China"],
+    "automatic_response_threshold": 85,
+    "critical_devices_require_approval": true,
+    "allowed_automatic_actions": ["COLLECT_EVIDENCE", "INCREASE_MONITORING", "NO_ACTION"]
+  }
+}

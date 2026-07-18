@@ -1,0 +1,50 @@
+[
+  {
+    "action_id": "ISOLATE_DEVICE",
+    "description": "Isolate the impacted endpoint from the network while preserving evidence.",
+    "reversible": true,
+    "requires_approval": true,
+    "allowed_targets": ["device"],
+    "steps": ["Record the affected device and current user context.", "Request containment approval from the assigned responder.", "Place the device into a containment state for investigation."]
+  },
+  {
+    "action_id": "DISABLE_USER",
+    "description": "Disable the impacted account to stop further access.",
+    "reversible": true,
+    "requires_approval": true,
+    "allowed_targets": ["user"],
+    "steps": ["Confirm the affected account identity.", "Request approval before changing account access.", "Temporarily disable the account and preserve audit evidence."]
+  },
+  {
+    "action_id": "BLOCK_DESTINATION_IP",
+    "description": "Block the suspicious destination IP at the perimeter.",
+    "reversible": true,
+    "requires_approval": true,
+    "allowed_targets": ["ip"],
+    "steps": ["Validate the destination IP against the observed evidence.", "Request approval for perimeter control changes.", "Apply a temporary block and monitor for recurrence."]
+  },
+  {
+    "action_id": "COLLECT_EVIDENCE",
+    "description": "Collect supporting evidence and preserve the timeline.",
+    "reversible": true,
+    "requires_approval": false,
+    "allowed_targets": ["device", "user", "ip"],
+    "steps": ["Capture the relevant alerts and timeline context.", "Preserve evidence metadata for the investigation.", "Document the findings for responder review."]
+  },
+  {
+    "action_id": "INCREASE_MONITORING",
+    "description": "Increase monitoring and alert coverage for the target.",
+    "reversible": true,
+    "requires_approval": false,
+    "allowed_targets": ["device", "user", "ip"],
+    "steps": ["Increase watch-list coverage for the target.", "Monitor for follow-on authentication and network activity.", "Escalate if suspicious activity persists."]
+  },
+  {
+    "action_id": "NO_ACTION",
+    "description": "No defensive action is recommended at this time.",
+    "reversible": true,
+    "requires_approval": false,
+    "allowed_targets": ["none"],
+    "steps": ["Retain the current monitoring posture.", "Reassess if the evidence changes."]
+  }
+]
