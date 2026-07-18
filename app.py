@@ -3,6 +3,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from database.database import (
+    count_security_events,
+    initialize_database,
+    load_security_events,
+    save_security_events,
+)
 from detection.rule_engine import detect_event_bursts
 from incidents.machine_overview import create_machine_overview
 from incidents.machine_ranking import (
@@ -67,6 +73,54 @@ st.info(
     "and generate response recommendations."
 )
 
+initialize_database()
+
+if "stored_security_events" not in st.session_state:
+    st.session_state["stored_security_events"] = pd.DataFrame()
+
+recent_event_limit = st.number_input(
+    "Number of recent stored events to load",
+    min_value=1,
+    max_value=1000,
+    value=100,
+    step=50,
+)
+
+st.subheader("Security Event Database")
+
+st.metric(
+    "Stored Security Events",
+    count_security_events(),
+)
+
+if st.button("Load Recent Stored Events"):
+    try:
+        stored_events = load_security_events(
+            limit=recent_event_limit,
+        )
+
+        st.session_state["stored_security_events"] = stored_events
+
+    except Exception as error:
+        st.error(
+            f"Unable to load stored events: {error}"
+        )
+
+if "stored_security_events" in st.session_state:
+    stored_events = st.session_state["stored_security_events"]
+
+    if not stored_events.empty:
+        st.subheader("Recent Stored Events")
+        st.dataframe(
+            stored_events,
+            use_container_width=True,
+        )
+
+    else:
+        st.info(
+            "No stored events have been loaded yet."
+        )
+
 uploaded_file = st.file_uploader(
     "Upload a CSV security log",
     type=["csv"],
@@ -89,6 +143,34 @@ if uploaded_file is not None:
         # Normalize logs
         # ---------------------------------------------------------
         normalized_logs = normalize_windows_event_logs(logs)
+
+        st.caption(
+            "Save the normalized events from the current upload "
+            "to the database."
+        )
+
+        if st.button(
+            "Save Normalized Events to Database",
+            type="primary",
+        ):
+            try:
+                inserted_count = save_security_events(
+                    normalized_logs=normalized_logs,
+                )
+
+                updated_total = count_security_events()
+
+                st.success(
+                    f"Saved {inserted_count:,} normalized events. "
+                    f"Database now contains {updated_total:,} events."
+                )
+
+                st.rerun()
+
+            except Exception as error:
+                st.error(
+                    f"Unable to save events: {error}"
+                )
 
         # ---------------------------------------------------------
         # UEBA baseline and anomaly processing
