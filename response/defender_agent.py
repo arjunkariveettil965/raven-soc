@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from response.action_policy import evaluate_action_policy
@@ -50,7 +50,7 @@ def run_defender_agent(
         "DecisionReason": str(policy_result.get("DecisionReason", "No action taken.")),
         "SimulationMessage": simulation_message,
         "AuditRecord": {
-            "Timestamp": datetime.utcnow().isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
             "ActionID": action_id,
             "Target": target,
             "Permitted": permitted,

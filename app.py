@@ -1,8 +1,13 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
+from dashboard.incident_demo import (
+    run_synthetic_defender_response,
+    run_synthetic_incident_pipeline,
+)
 from database.database import (
     count_security_events,
     initialize_database,
@@ -78,6 +83,15 @@ initialize_database()
 if "stored_security_events" not in st.session_state:
     st.session_state["stored_security_events"] = pd.DataFrame()
 
+for state_key, default_value in {
+    "synthetic_pipeline_result": None,
+    "synthetic_defender_response": None,
+    "synthetic_action_approved": False,
+    "synthetic_action_rejected": False,
+}.items():
+    if state_key not in st.session_state:
+        st.session_state[state_key] = default_value
+
 recent_event_limit = st.number_input(
     "Number of recent stored events to load",
     min_value=1,
@@ -120,6 +134,375 @@ if "stored_security_events" in st.session_state:
         st.info(
             "No stored events have been loaded yet."
         )
+
+
+# =============================================================
+# RAVEN-SOC synthetic incident-response demonstration
+# =============================================================
+st.divider()
+st.header("RAVEN-SOC Incident Response Lab")
+st.caption(
+    "Run a safe synthetic multi-stage attack through detection, "
+    "correlation, classification, Analyst Agent reasoning and "
+    "simulated Defender response."
+)
+
+incident_lab_environment = st.selectbox(
+    "Environment profile",
+    [
+        "SME Office",
+        "Finance SME",
+        "Healthcare",
+        "Educational Institution",
+        "Development Environment",
+    ],
+    index=1,
+    key="incident_lab_environment",
+)
+
+run_lab_col, reset_lab_col = st.columns([3, 1])
+
+with run_lab_col:
+    run_synthetic_attack = st.button(
+        "Run Synthetic Multi-Stage Attack",
+        type="primary",
+        width="stretch",
+    )
+
+with reset_lab_col:
+    reset_incident_lab = st.button(
+        "Reset Incident Lab",
+        width="stretch",
+    )
+
+if reset_incident_lab:
+    st.session_state["synthetic_pipeline_result"] = None
+    st.session_state["synthetic_defender_response"] = None
+    st.session_state["synthetic_action_approved"] = False
+    st.session_state["synthetic_action_rejected"] = False
+    st.rerun()
+
+if run_synthetic_attack:
+    try:
+        with st.spinner("Running the RAVEN-SOC incident pipeline..."):
+            st.session_state["synthetic_pipeline_result"] = (
+                run_synthetic_incident_pipeline(
+                    environment_name=incident_lab_environment,
+                )
+            )
+        st.session_state["synthetic_defender_response"] = None
+        st.session_state["synthetic_action_approved"] = False
+        st.session_state["synthetic_action_rejected"] = False
+        st.success("Synthetic incident pipeline completed successfully.")
+    except Exception as error:
+        st.session_state["synthetic_pipeline_result"] = None
+        st.error(f"Unable to run the synthetic incident pipeline: {error}")
+
+synthetic_result = st.session_state["synthetic_pipeline_result"]
+
+if synthetic_result is not None:
+    events = synthetic_result["events"]
+    specialist_alerts = synthetic_result["alerts"]
+    correlated_incidents = synthetic_result["incidents"]
+    selected_incident = synthetic_result["selected_incident"]
+    incident_timeline = synthetic_result["timeline"]
+    formatted_timeline = synthetic_result["formatted_timeline"]
+    analyst_analysis = synthetic_result["analysis"]
+    environment_profile = synthetic_result["environment_profile"]
+
+    if isinstance(selected_incident, pd.Series):
+        incident_record = selected_incident.to_dict()
+    else:
+        incident_record = dict(selected_incident)
+
+    incident_confidence = incident_record.get(
+        "IncidentConfidence",
+        incident_record.get("Confidence", "N/A"),
+    )
+    analyst_confidence = analyst_analysis.get("Confidence", "N/A")
+
+    st.subheader("Pipeline Summary")
+    summary_columns = st.columns(5)
+    summary_columns[0].metric("Synthetic Events", len(events))
+    summary_columns[1].metric("Generated Alerts", len(specialist_alerts))
+    summary_columns[2].metric(
+        "Correlated Incidents",
+        len(correlated_incidents),
+    )
+    summary_columns[3].metric("Incident Confidence", incident_confidence)
+    summary_columns[4].metric("Analyst Confidence", analyst_confidence)
+
+    with st.expander("1. Synthetic Security Events", expanded=False):
+        event_columns = [
+            "EventTime",
+            "DeviceName",
+            "UserName",
+            "WindowsEventID",
+            "EventType",
+            "EventResult",
+            "EventSeverity",
+            "SourceIP",
+            "DestinationIP",
+            "ProcessName",
+            "ParentProcessName",
+            "CommandLine",
+            "RawMessage",
+        ]
+        available_event_columns = [
+            column for column in event_columns if column in events.columns
+        ]
+        st.dataframe(
+            events[available_event_columns],
+            width="stretch",
+            hide_index=True,
+        )
+
+    with st.expander("2. Specialist Detection Alerts", expanded=True):
+        alert_columns = [
+            "AlertTime",
+            "DeviceName",
+            "UserName",
+            "AlertType",
+            "AlertSeverity",
+            "ConfidenceScore",
+            "MITRETactic",
+            "MITRETechnique",
+            "Evidence",
+        ]
+        available_alert_columns = [
+            column
+            for column in alert_columns
+            if column in specialist_alerts.columns
+        ]
+        st.dataframe(
+            specialist_alerts[available_alert_columns],
+            width="stretch",
+            hide_index=True,
+        )
+
+    st.subheader("3. Correlated Incident")
+    incident_metric_columns = st.columns(3)
+    incident_metric_columns[0].metric(
+        "Severity",
+        incident_record.get("IncidentSeverity", "Unknown"),
+    )
+    incident_metric_columns[1].metric(
+        "Confidence",
+        incident_confidence,
+    )
+    incident_metric_columns[2].metric(
+        "Alert Count",
+        incident_record.get("AlertCount", len(specialist_alerts)),
+    )
+
+    incident_details = {
+        "Incident ID": incident_record.get("IncidentID", "N/A"),
+        "Incident Type": incident_record.get("IncidentType", "Unknown"),
+        "Affected Device": incident_record.get("AffectedDevice", "N/A"),
+        "Affected User": incident_record.get("AffectedUser", "N/A"),
+        "Source IP": incident_record.get("SourceIP", "N/A"),
+        "First Seen": incident_record.get("FirstSeen", "N/A"),
+        "Last Seen": incident_record.get("LastSeen", "N/A"),
+    }
+    st.json(incident_details)
+    st.markdown("**Attack Stages**")
+    st.write(incident_record.get("AttackStages", []))
+    st.markdown("**MITRE Techniques**")
+    st.write(incident_record.get("MITRETechniques", []))
+    st.markdown("**Classification Reason**")
+    st.write(incident_record.get("ClassificationReason", "Not provided."))
+
+    st.subheader("4. Incident Timeline")
+    if formatted_timeline:
+        for timeline_entry in formatted_timeline:
+            st.markdown(f"- {timeline_entry}")
+    else:
+        st.info("No formatted timeline entries were returned.")
+
+    with st.expander("View Structured Timeline"):
+        st.dataframe(
+            incident_timeline,
+            width="stretch",
+            hide_index=True,
+        )
+
+    st.subheader("5. RAVEN Analyst Agent")
+    analyst_metrics = st.columns(3)
+    analyst_metrics[0].metric(
+        "Status",
+        analyst_analysis.get("Status", "Unknown"),
+    )
+    analyst_metrics[1].metric(
+        "Severity",
+        analyst_analysis.get("Severity", "Unknown"),
+    )
+    analyst_metrics[2].metric(
+        "Confidence",
+        analyst_confidence,
+    )
+
+    st.markdown("**Threat Type**")
+    st.write(analyst_analysis.get("ThreatType", "Unknown"))
+    st.markdown("**Summary**")
+    st.write(analyst_analysis.get("Summary", "No summary provided."))
+    st.markdown("**Suspicion Reason**")
+    st.write(
+        analyst_analysis.get(
+            "SuspicionReason",
+            "No suspicion reason provided.",
+        )
+    )
+
+    evidence_col, inference_col = st.columns(2)
+    with evidence_col:
+        st.markdown("#### Observed Evidence")
+        observed_evidence = analyst_analysis.get("ObservedEvidence", [])
+        if observed_evidence:
+            for evidence in observed_evidence:
+                st.markdown(f"- {evidence}")
+        else:
+            st.info("No observed evidence was returned.")
+
+    with inference_col:
+        st.markdown("#### Analyst Inferences")
+        inferences = analyst_analysis.get("Inferences", [])
+        if inferences:
+            for inference in inferences:
+                st.markdown(f"- {inference}")
+        else:
+            st.info("No analyst inferences were returned.")
+
+    st.markdown("**MITRE Techniques**")
+    st.write(analyst_analysis.get("MITRETechniques", []))
+    st.markdown("**Evidence IDs**")
+    st.write(analyst_analysis.get("EvidenceIDs", []))
+    st.caption(
+        "Current mode: deterministic constrained Analyst Agent. "
+        "Local SLM integration will use the same validated output schema."
+    )
+
+    st.subheader("6. Defender Action Center")
+    recommended_action = analyst_analysis.get(
+        "RecommendedActionID",
+        "NO_ACTION",
+    )
+    action_target = analyst_analysis.get("Target", "N/A")
+    requires_approval = bool(
+        analyst_analysis.get("RequiresApproval", False)
+    )
+
+    action_columns = st.columns(3)
+    action_columns[0].metric("Recommended Action", recommended_action)
+    action_columns[1].metric("Target", action_target)
+    action_columns[2].metric(
+        "Requires Approval",
+        "Yes" if requires_approval else "No",
+    )
+
+    approve_column, reject_column = st.columns(2)
+    with approve_column:
+        approve_action = st.button(
+            "Approve Simulated Action",
+            type="primary",
+            width="stretch",
+        )
+    with reject_column:
+        reject_action = st.button(
+            "Reject Action",
+            width="stretch",
+        )
+
+    if approve_action:
+        try:
+            st.session_state["synthetic_action_approved"] = True
+            st.session_state["synthetic_action_rejected"] = False
+            st.session_state["synthetic_defender_response"] = (
+                run_synthetic_defender_response(
+                    analysis=analyst_analysis,
+                    environment_profile=environment_profile,
+                    human_approved=True,
+                )
+            )
+        except Exception as error:
+            st.error(f"Unable to evaluate the Defender action: {error}")
+
+    if reject_action:
+        st.session_state["synthetic_action_approved"] = False
+        st.session_state["synthetic_action_rejected"] = True
+        rejection_reason = "The analyst rejected the recommended action."
+        st.session_state["synthetic_defender_response"] = {
+            "ActionID": recommended_action,
+            "Target": action_target,
+            "Permitted": False,
+            "Executed": False,
+            "ExecutionMode": "Advisory",
+            "RequiresApproval": requires_approval,
+            "HumanApproved": False,
+            "DecisionReason": rejection_reason,
+            "SimulationMessage": "No simulated response was performed.",
+            "AuditRecord": {
+                "Timestamp": datetime.now(UTC).isoformat(),
+                "ActionID": recommended_action,
+                "Target": action_target,
+                "Permitted": False,
+                "Executed": False,
+                "ExecutionMode": "Advisory",
+                "Reason": rejection_reason,
+            },
+        }
+
+    defender_response = st.session_state["synthetic_defender_response"]
+    if defender_response is not None:
+        st.subheader("Defender Decision")
+
+        if defender_response.get("Executed") is True:
+            st.success(
+                defender_response.get(
+                    "SimulationMessage",
+                    "The simulated action was completed.",
+                )
+            )
+        elif (
+            defender_response.get("RequiresApproval")
+            and not defender_response.get("HumanApproved")
+            and not st.session_state["synthetic_action_rejected"]
+        ):
+            st.warning(
+                defender_response.get(
+                    "DecisionReason",
+                    "Human approval is still required.",
+                )
+            )
+        else:
+            st.info(
+                defender_response.get(
+                    "SimulationMessage",
+                    "No simulated action was executed.",
+                )
+            )
+
+        defender_fields = [
+            "ActionID",
+            "Target",
+            "Permitted",
+            "Executed",
+            "ExecutionMode",
+            "RequiresApproval",
+            "HumanApproved",
+            "DecisionReason",
+            "SimulationMessage",
+        ]
+        st.json(
+            {
+                field: defender_response.get(field)
+                for field in defender_fields
+            }
+        )
+
+        with st.expander("Response Audit Record"):
+            st.json(defender_response.get("AuditRecord", {}))
+
+st.divider()
 
 uploaded_file = st.file_uploader(
     "Upload a CSV security log",
