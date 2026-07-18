@@ -8,26 +8,63 @@ from incidents.machine_overview import create_machine_overview
 from incidents.machine_ranking import (
     add_machine_inventory,
     add_most_common_event_type,
+    add_ueba_summary,
     calculate_machine_risk,
+    summarize_ueba_anomalies,
 )
 from ingestion.normalizer import normalize_windows_event_logs
 from response.response_engine import (
     generate_response_recommendations,
 )
+from ueba.anomaly_engine import detect_device_anomalies
+from ueba.baseline_engine import (
+    build_device_baseline,
+    split_baseline_and_evaluation_logs,
+)
+
+
+
+def format_hour(hour: int) -> str:
+    """
+    Convert a 24-hour integer into a readable 12-hour format.
+
+    Examples:
+    0  -> 12 AM
+    6  -> 6 AM
+    13 -> 1 PM
+    17 -> 5 PM
+    """
+
+    hour = int(hour)
+
+    if hour == 0:
+        return "12 AM"
+
+    if hour < 12:
+        return f"{hour} AM"
+
+    if hour == 12:
+        return "12 PM"
+
+    return f"{hour - 12} PM"
 
 
 st.set_page_config(
-    page_title="AI-SOC Platform",
+    page_title="RAVEN-SOC",
     page_icon="🛡️",
     layout="wide",
 )
 
-st.title("🛡️ AI-SOC Platform")
-st.subheader("GenAI-Driven Security Operations Platform for SMEs")
+st.title("🛡️ RAVEN-SOC")
+st.subheader(
+    "Real-Time AI Vigilance, Event Normalization "
+    "and Security Operations Center"
+)
 
 st.info(
-    "Upload a security log file to normalize, inspect, detect threats, "
-    "rank affected devices and generate response recommendations."
+    "Upload a security log file to normalize events, detect threats, "
+    "learn device behaviour, identify anomalies, rank affected devices "
+    "and generate response recommendations."
 )
 
 uploaded_file = st.file_uploader(
@@ -53,8 +90,30 @@ if uploaded_file is not None:
         # ---------------------------------------------------------
         normalized_logs = normalize_windows_event_logs(logs)
 
+        # ---------------------------------------------------------
+        # UEBA baseline and anomaly processing
+        # ---------------------------------------------------------
+        baseline_logs, evaluation_logs = (
+            split_baseline_and_evaluation_logs(
+                normalized_logs=normalized_logs,
+                baseline_fraction=0.70,
+            )
+        )
+
+        device_baseline = build_device_baseline(
+            baseline_logs=baseline_logs,
+            window_minutes=60,
+        )
+
+        ueba_anomalies = detect_device_anomalies(
+            evaluation_logs=evaluation_logs,
+            device_baseline=device_baseline,
+            window_minutes=60,
+            standard_deviation_multiplier=3.0,
+        )
+
         st.success(
-            "Security log uploaded and normalized successfully."
+            "Security log uploaded, normalized and analysed successfully."
         )
 
         # ---------------------------------------------------------
@@ -82,12 +141,12 @@ if uploaded_file is not None:
         col4.metric(
             "Devices Identified",
             normalized_logs["DeviceName"].nunique(
-                dropna=True
+                dropna=True,
             ),
         )
 
         # ---------------------------------------------------------
-        # Raw events
+        # Raw security events
         # ---------------------------------------------------------
         st.subheader("Raw Security Events")
 
@@ -112,7 +171,7 @@ if uploaded_file is not None:
                 "Data Type": logs.dtypes.astype(str).values,
                 "Missing Values": logs.isnull().sum().values,
                 "Unique Values": logs.nunique(
-                    dropna=True
+                    dropna=True,
                 ).values,
             }
         )
@@ -124,12 +183,12 @@ if uploaded_file is not None:
         )
 
         # ---------------------------------------------------------
-        # Normalized events
+        # Normalized security events
         # ---------------------------------------------------------
         st.subheader("Normalized Security Events")
 
         st.caption(
-            "Events converted into the common AI-SOC schema. "
+            "Events converted into the common RAVEN-SOC schema. "
             "Unavailable source fields remain empty."
         )
 
@@ -154,7 +213,7 @@ if uploaded_file is not None:
         normalized_col3.metric(
             "Event Sources",
             normalized_logs["EventSource"].nunique(
-                dropna=True
+                dropna=True,
             ),
         )
 
@@ -180,7 +239,7 @@ if uploaded_file is not None:
                     ),
                     "Unique Values": (
                         normalized_logs.nunique(
-                            dropna=True
+                            dropna=True,
                         ).values
                     ),
                 }
@@ -188,6 +247,116 @@ if uploaded_file is not None:
 
             st.dataframe(
                 normalized_summary,
+                width="stretch",
+                hide_index=True,
+            )
+
+        # ---------------------------------------------------------
+        # UEBA analytics
+        # ---------------------------------------------------------
+        st.subheader("UEBA Analytics")
+
+        st.caption(
+            "The first 70% of events are used to learn normal "
+            "device behaviour. The remaining 30% are evaluated "
+            "for behavioural anomalies."
+        )
+
+        (
+            ueba_col1,
+            ueba_col2,
+            ueba_col3,
+            ueba_col4,
+            ueba_col5,
+        ) = st.columns(5)
+
+        ueba_col1.metric(
+            "Baseline Events",
+            len(baseline_logs),
+        )
+
+        ueba_col2.metric(
+            "Evaluation Events",
+            len(evaluation_logs),
+        )
+
+        ueba_col3.metric(
+            "Devices Baselined",
+            device_baseline["DeviceName"].nunique(),
+        )
+
+        ueba_col4.metric(
+            "Detected Anomalies",
+            len(ueba_anomalies),
+        )
+
+        critical_anomalies = 0
+
+        if not ueba_anomalies.empty:
+            critical_anomalies = int(
+                (
+                    ueba_anomalies["AnomalySeverity"]
+                    == "Critical"
+                ).sum()
+            )
+
+        ueba_col5.metric(
+            "Critical Anomalies",
+            critical_anomalies,
+        )
+
+        display_device_baseline = device_baseline.copy()
+
+        display_device_baseline["KnownActiveHours"] = (
+            display_device_baseline["KnownActiveHours"].apply(
+                lambda hours: tuple(
+                    format_hour(hour)
+                    for hour in hours
+                )
+            )
+        )
+
+        with st.expander("View Learned Device Baselines"):
+            st.dataframe(
+                display_device_baseline,
+                width="stretch",
+                hide_index=True,
+            )
+
+        st.markdown("#### Detected Behavioural Anomalies")
+
+        if ueba_anomalies.empty:
+            st.success(
+                "No behavioural anomalies were detected "
+                "in the evaluation period."
+            )
+
+        else:
+            anomaly_columns = [
+                "DeviceName",
+                "WindowStart",
+                "WindowEnd",
+                "EventCount",
+                "HighSeverityEventCount",
+                "AnomalyTypes",
+                "AnomalyScore",
+                "AnomalySeverity",
+                "Evidence",
+                "BaselineMeanEvents",
+                "BaselineStdEvents",
+                "BaselineMeanHighSeverity",
+            ]
+
+            available_anomaly_columns = [
+                column
+                for column in anomaly_columns
+                if column in ueba_anomalies.columns
+            ]
+
+            st.dataframe(
+                ueba_anomalies[
+                    available_anomaly_columns
+                ],
                 width="stretch",
                 hide_index=True,
             )
@@ -228,8 +397,8 @@ if uploaded_file is not None:
 
         if alerts.empty:
             st.success(
-                "No repeated medium or high-severity event bursts "
-                "were detected."
+                "No repeated medium or high-severity event "
+                "bursts were detected."
             )
 
         else:
@@ -303,6 +472,15 @@ if uploaded_file is not None:
             inventory=machine_inventory,
         )
 
+        ueba_summary = summarize_ueba_anomalies(
+            ueba_anomalies=ueba_anomalies,
+        )
+
+        machine_overview = add_ueba_summary(
+            machine_overview=machine_overview,
+            ueba_summary=ueba_summary,
+        )
+
         machine_ranking = calculate_machine_risk(
             machine_overview=machine_overview,
         )
@@ -317,9 +495,12 @@ if uploaded_file is not None:
             )
         )
 
-        machine_col1, machine_col2, machine_col3, machine_col4 = (
-            st.columns(4)
-        )
+        (
+            machine_col1,
+            machine_col2,
+            machine_col3,
+            machine_col4,
+        ) = st.columns(4)
 
         machine_col1.metric(
             "Devices Monitored",
@@ -358,7 +539,7 @@ if uploaded_file is not None:
         )
 
         # ---------------------------------------------------------
-        # Device risk ranking
+        # Device activity and risk ranking
         # ---------------------------------------------------------
         st.subheader("Device Activity and Risk Ranking")
 
@@ -378,6 +559,10 @@ if uploaded_file is not None:
             "TotalAlerts",
             "MediumSeverityAlerts",
             "HighSeverityAlerts",
+            "TotalUEBAAnomalies",
+            "CriticalUEBAAnomalies",
+            "MaximumAnomalyScore",
+            "UEBARiskContribution",
             "RiskScore",
             "OverallRisk",
         ]
@@ -401,9 +586,11 @@ if uploaded_file is not None:
         # ---------------------------------------------------------
         st.subheader("Response Recommendations")
 
-        response_col1, response_col2, response_col3 = (
-            st.columns(3)
-        )
+        (
+            response_col1,
+            response_col2,
+            response_col3,
+        ) = st.columns(3)
 
         response_col1.metric(
             "Automatic Isolation Decisions",
@@ -514,6 +701,26 @@ if uploaded_file is not None:
                 hide_index=True,
             )
 
+        selected_device_anomalies = ueba_anomalies[
+            ueba_anomalies["DeviceName"]
+            == selected_device
+        ]
+
+        st.markdown("#### UEBA Anomalies for Selected Device")
+
+        if selected_device_anomalies.empty:
+            st.info(
+                "No behavioural anomalies were detected "
+                "for this device."
+            )
+
+        else:
+            st.dataframe(
+                selected_device_anomalies,
+                width="stretch",
+                hide_index=True,
+            )
+
         selected_device_response = (
             response_recommendations[
                 response_recommendations["DeviceName"]
@@ -555,8 +762,8 @@ if uploaded_file is not None:
 
     except ValueError as error:
         st.error(
-            "Normalization, detection, analysis or response "
-            f"error: {error}"
+            "Normalization, detection, UEBA, analysis or "
+            f"response error: {error}"
         )
 
     except pd.errors.EmptyDataError:
