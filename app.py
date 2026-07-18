@@ -8,6 +8,7 @@ from dashboard.incident_demo import (
     run_synthetic_defender_response,
     run_synthetic_incident_pipeline,
 )
+from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, check_ollama_health
 from database.database import (
     count_security_events,
     initialize_database,
@@ -160,6 +161,51 @@ incident_lab_environment = st.selectbox(
     key="incident_lab_environment",
 )
 
+analyst_mode_label = st.selectbox(
+    "Analyst mode",
+    [
+        "Deterministic",
+        "Local SLM",
+        "Hybrid",
+    ],
+    index=0,
+    key="incident_lab_analyst_mode",
+)
+analyst_mode_map = {
+    "Deterministic": "deterministic",
+    "Local SLM": "ollama",
+    "Hybrid": "hybrid",
+}
+incident_lab_analyst_mode = analyst_mode_map[analyst_mode_label]
+incident_lab_ollama_model = st.text_input(
+    "Local Ollama model",
+    value=DEFAULT_OLLAMA_MODEL,
+    key="incident_lab_ollama_model",
+)
+mode_captions = {
+    "deterministic": "Rule-grounded constrained Analyst Agent.",
+    "ollama": "Local Ollama model with strict structured-output validation and deterministic fallback.",
+    "hybrid": "Deterministic security decision with local-model assistance for explanation.",
+}
+st.caption(mode_captions[incident_lab_analyst_mode])
+
+if incident_lab_analyst_mode in {"ollama", "hybrid"}:
+    ollama_health = check_ollama_health(base_url=DEFAULT_OLLAMA_URL)
+    if ollama_health.get("available"):
+        st.success("Ollama is available.")
+        available_models = ollama_health.get("models", [])
+        st.write("Available models:", available_models)
+        if incident_lab_ollama_model not in available_models:
+            st.warning(
+                f"{incident_lab_ollama_model} was not found. "
+                "Deterministic fallback will be used if the local model call fails."
+            )
+    else:
+        st.warning(
+            "Ollama is unavailable. Deterministic fallback will be used."
+        )
+        st.caption(str(ollama_health.get("error") or "No health details returned."))
+
 run_lab_col, reset_lab_col = st.columns([3, 1])
 
 with run_lab_col:
@@ -188,6 +234,8 @@ if run_synthetic_attack:
             st.session_state["synthetic_pipeline_result"] = (
                 run_synthetic_incident_pipeline(
                     environment_name=incident_lab_environment,
+                    analyst_mode=incident_lab_analyst_mode,
+                    ollama_model=incident_lab_ollama_model,
                 )
             )
         st.session_state["synthetic_defender_response"] = None
@@ -209,6 +257,7 @@ if synthetic_result is not None:
     formatted_timeline = synthetic_result["formatted_timeline"]
     analyst_analysis = synthetic_result["analysis"]
     environment_profile = synthetic_result["environment_profile"]
+    analyst_metadata = synthetic_result.get("analyst_metadata", {})
 
     if isinstance(selected_incident, pd.Series):
         incident_record = selected_incident.to_dict()
@@ -376,10 +425,19 @@ if synthetic_result is not None:
     st.write(analyst_analysis.get("MITRETechniques", []))
     st.markdown("**Evidence IDs**")
     st.write(analyst_analysis.get("EvidenceIDs", []))
-    st.caption(
-        "Current mode: deterministic constrained Analyst Agent. "
-        "Local SLM integration will use the same validated output schema."
+    st.markdown("**Analyst Execution**")
+    execution_columns = st.columns(4)
+    execution_columns[0].metric("Analyst Mode", analyst_metadata.get("AnalystMode", "deterministic"))
+    execution_columns[1].metric("Model Name", analyst_metadata.get("ModelName", DEFAULT_OLLAMA_MODEL))
+    execution_columns[2].metric(
+        "Used Fallback",
+        "Yes" if analyst_metadata.get("UsedFallback") else "No",
     )
+    execution_columns[3].metric(
+        "Fallback Reason",
+        analyst_metadata.get("FallbackReason") or "None",
+    )
+    st.caption(mode_captions.get(str(analyst_metadata.get("AnalystMode", "deterministic")), mode_captions["deterministic"]))
 
     st.subheader("6. Defender Action Center")
     recommended_action = analyst_analysis.get(

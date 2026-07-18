@@ -12,6 +12,7 @@ import pandas as pd
 
 from ai_analyst import agent as analyst_agent
 from ai_analyst import environment_adapter
+from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, check_ollama_health
 from data_generation import attack_simulator
 from detection import alert_engine
 from incidents import correlation_engine, incident_classifier, timeline_builder
@@ -82,11 +83,17 @@ def _invoke_analyst_agent(
     incident: pd.Series,
     timeline: pd.DataFrame,
     environment_name: str,
+    analyst_mode: str,
+    ollama_model: str,
+    ollama_base_url: str,
 ) -> dict[str, object]:
     analysis = analyst_agent.run_analyst_agent(
         incident=incident,
         timeline=timeline,
         environment_name=environment_name,
+        mode=analyst_mode,
+        ollama_model=ollama_model,
+        ollama_base_url=ollama_base_url,
     )
     if not isinstance(analysis, dict):
         raise TypeError("The Analyst Agent must return a dictionary.")
@@ -110,6 +117,9 @@ def _invoke_defender_agent(
 
 def run_synthetic_incident_pipeline(
     environment_name: str = "Finance SME",
+    analyst_mode: str = "deterministic",
+    ollama_model: str = DEFAULT_OLLAMA_MODEL,
+    ollama_base_url: str = DEFAULT_OLLAMA_URL,
 ) -> dict[str, object]:
     """Run one safe synthetic attack through the complete RAVEN-SOC pipeline."""
 
@@ -167,7 +177,20 @@ def run_synthetic_incident_pipeline(
         incident=selected_incident,
         timeline=timeline,
         environment_name=environment_name,
+        analyst_mode=analyst_mode,
+        ollama_model=ollama_model,
+        ollama_base_url=ollama_base_url,
     )
+    analyst_metadata = analyst_agent.get_last_analyst_metadata()
+    if analyst_mode in {"ollama", "hybrid"}:
+        ollama_health = check_ollama_health(base_url=ollama_base_url)
+    else:
+        ollama_health = {
+            "available": False,
+            "base_url": ollama_base_url,
+            "models": [],
+            "error": "Health check not required in deterministic mode.",
+        }
 
     return {
         "events": events,
@@ -178,6 +201,10 @@ def run_synthetic_incident_pipeline(
         "formatted_timeline": formatted_timeline,
         "analysis": analysis,
         "environment_profile": environment_profile,
+        "analyst_mode": analyst_mode,
+        "ollama_model": ollama_model,
+        "ollama_health": ollama_health,
+        "analyst_metadata": analyst_metadata,
     }
 
 
