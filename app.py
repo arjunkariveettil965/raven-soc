@@ -154,15 +154,18 @@ if uploaded_file is not None:
             type="primary",
         ):
             try:
-                inserted_count = save_security_events(
+                save_result = save_security_events(
                     normalized_logs=normalized_logs,
                 )
 
                 updated_total = count_security_events()
 
                 st.success(
-                    f"Saved {inserted_count:,} normalized events. "
-                    f"Database now contains {updated_total:,} events."
+                    "Received "
+                    f"{save_result['received']:,} events. "
+                    f"Inserted {save_result['inserted']:,}. "
+                    f"Duplicates skipped {save_result['duplicates_skipped']:,}. "
+                    f"Database total {updated_total:,}."
                 )
 
                 st.rerun()
