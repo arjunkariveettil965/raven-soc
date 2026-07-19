@@ -15,6 +15,16 @@ from database.database import (
     load_security_events,
     save_security_events,
 )
+from collector.live_pipeline import (
+    initialize_missing_checkpoints_at_current_position,
+    reset_channels_to_current_position,
+    run_live_collection,
+    run_monitoring_cycle,
+)
+from collector.monitoring_state import (
+    alert_notification_message,
+    validate_poll_interval,
+)
 from detection.rule_engine import detect_event_bursts
 from incidents.machine_overview import create_machine_overview
 from incidents.machine_ranking import (
@@ -61,6 +71,10 @@ def format_hour(hour: int) -> str:
     return f"{hour - 12} PM"
 
 
+def streamlit_fragment(*, run_every: int | None):
+    return st.fragment(run_every=run_every)
+
+
 st.set_page_config(
     page_title="RAVEN-SOC",
     page_icon="🛡️",
@@ -89,6 +103,18 @@ for state_key, default_value in {
     "synthetic_defender_response": None,
     "synthetic_action_approved": False,
     "synthetic_action_rejected": False,
+    "live_collection_result": None,
+    "live_collection_channels": ["System", "Application"],
+    "live_collection_limit": 100,
+    "live_monitoring_enabled": False,
+    "live_monitoring_active_interval": 15,
+    "live_monitoring_seen_alert_ids": set(),
+    "live_monitoring_last_result": None,
+    "live_monitoring_cycle_count": 0,
+    "live_monitoring_last_error": None,
+    "live_monitoring_start_from_current": True,
+    "live_monitoring_setup_status": {},
+    "live_checkpoint_reset_result": None,
 }.items():
     if state_key not in st.session_state:
         st.session_state[state_key] = default_value
@@ -135,6 +161,371 @@ if "stored_security_events" in st.session_state:
         st.info(
             "No stored events have been loaded yet."
         )
+
+
+# =============================================================
+# Live Windows Event Log ingestion
+# =============================================================
+st.divider()
+st.header("Live Windows Event Ingestion")
+st.caption(
+    "Read new local Windows Event Log records, normalize them and persist them to the RAVEN-SOC database."
+)
+
+live_channels = st.multiselect(
+    "Windows log channels",
+    ["System", "Application", "Security"],
+    default=["System", "Application"],
+    key="live_collection_channels",
+)
+
+live_limit = st.number_input(
+    "Maximum new events per channel",
+    min_value=1,
+    max_value=1000,
+    value=100,
+    step=50,
+    key="live_collection_limit",
+)
+
+selected_monitoring_interval = st.number_input(
+    "Automatic polling interval in seconds",
+    min_value=5,
+    max_value=300,
+    value=15,
+    step=5,
+    key="live_monitoring_interval",
+)
+
+live_start_from_current = st.checkbox(
+    "Start from current log position",
+    value=True,
+    key="live_monitoring_start_from_current",
+)
+
+control_columns = st.columns(4)
+
+if st.button("Collect New Windows Events"):
+    if not live_channels:
+        st.warning("Select at least one Windows log channel.")
+    else:
+        try:
+            with st.spinner("Collecting new local Windows Event Log records..."):
+                st.session_state["live_collection_result"] = run_live_collection(
+                    channels=list(live_channels),
+                    max_events_per_channel=int(live_limit),
+                )
+            st.success("Live collection completed.")
+        except Exception as error:
+            st.session_state["live_collection_result"] = None
+            st.error(f"Unable to collect Windows events: {error}")
+
+with control_columns[0]:
+    if st.button("Start Automatic Monitoring"):
+        if not live_channels:
+            st.warning("Select at least one Windows log channel.")
+        else:
+            try:
+                st.session_state["live_monitoring_active_interval"] = (
+                    validate_poll_interval(selected_monitoring_interval)
+                )
+                if live_start_from_current:
+                    st.session_state["live_monitoring_setup_status"] = (
+                        initialize_missing_checkpoints_at_current_position(
+                            channels=list(live_channels),
+                        )
+                    )
+                st.session_state["live_monitoring_enabled"] = True
+                st.session_state["live_monitoring_last_error"] = None
+            except Exception as error:
+                st.session_state["live_monitoring_enabled"] = False
+                st.session_state["live_monitoring_last_error"] = str(error)
+                st.error(f"Unable to start automatic monitoring: {error}")
+
+with control_columns[1]:
+    if st.button("Stop Automatic Monitoring"):
+        st.session_state["live_monitoring_enabled"] = False
+
+with control_columns[2]:
+    if st.button("Reset Selected Channels to Current Position"):
+        if not live_channels:
+            st.warning("Select at least one Windows log channel.")
+        else:
+            st.session_state["live_monitoring_enabled"] = False
+            reset_result = reset_channels_to_current_position(
+                channels=list(live_channels),
+            )
+            st.session_state["live_checkpoint_reset_result"] = reset_result
+
+            if reset_result["reset_count"] > 0:
+                st.session_state["live_collection_result"] = None
+                reset_channels = [
+                    channel
+                    for channel, result in reset_result["channel_results"].items()
+                    if result["reset"]
+                ]
+                st.success(
+                    f"{' and '.join(reset_channels)} checkpoints were moved to the current log position. Future collections will include only newer records."
+                )
+
+            for reset_error in reset_result["errors"]:
+                if "Security log access was denied" in reset_error:
+                    st.warning(
+                        "Security log access was denied. Run VS Code as Administrator only when testing that channel, or continue using System and Application logs."
+                    )
+                else:
+                    st.error(reset_error)
+
+with control_columns[3]:
+    if st.session_state["live_monitoring_enabled"]:
+        st.success("Automatic monitoring is active.")
+    else:
+        st.info("Automatic monitoring is stopped.")
+
+st.caption(
+    "Resetting checkpoints does not delete historical events already stored in SQLite. It only changes where future Windows log collection resumes."
+)
+
+
+def show_checkpoint_reset_result() -> None:
+    reset_result = st.session_state.get("live_checkpoint_reset_result")
+    if reset_result is None:
+        return
+
+    reset_status = pd.DataFrame(
+        reset_result.get("channel_results", {}).values()
+    )
+    if reset_status.empty:
+        return
+
+    st.subheader("Checkpoint Reset Result")
+    st.dataframe(
+        reset_status[
+            [
+                "channel",
+                "previous_checkpoint",
+                "new_checkpoint",
+                "reset",
+                "error",
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def show_live_result(live_result: dict[str, object] | None) -> None:
+    show_checkpoint_reset_result()
+
+    if live_result is None:
+        st.info("No live collection result is available yet.")
+        return
+
+    if live_result.get("errors"):
+        for live_error in live_result["errors"]:
+            if "Security log access was denied" in live_error:
+                st.warning(
+                    "Security log access was denied. Run VS Code as Administrator only when testing that channel, or continue using System and Application logs."
+                )
+            else:
+                st.error(live_error)
+
+    new_alerts = live_result.get("new_alerts", pd.DataFrame())
+    if isinstance(new_alerts, pd.DataFrame) and not new_alerts.empty:
+        st.subheader("Latest Unseen Alerts")
+        for _, alert in new_alerts.iterrows():
+            severity = str(
+                alert.get("AlertSeverity", alert.get("Severity", "Info"))
+            ).strip().lower()
+            message = alert_notification_message(alert)
+            if severity == "critical":
+                st.error(message)
+            elif severity in {"high", "medium"}:
+                st.warning(message)
+            else:
+                st.info(message)
+        st.dataframe(
+            new_alerts,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    live_metric_columns = st.columns(8)
+    live_metric_columns[0].metric(
+        "Monitoring Status",
+        "Active" if st.session_state["live_monitoring_enabled"] else "Stopped",
+    )
+    live_metric_columns[1].metric(
+        "Polling Interval",
+        (
+            f"{int(st.session_state['live_monitoring_active_interval'])}s active"
+            if st.session_state["live_monitoring_enabled"]
+            else f"{int(st.session_state['live_monitoring_interval'])}s configured"
+        ),
+    )
+    live_metric_columns[2].metric(
+        "Completed Cycles",
+        int(st.session_state["live_monitoring_cycle_count"]),
+    )
+    live_metric_columns[3].metric(
+        "New Raw Events",
+        int(live_result.get("received", 0)),
+    )
+    live_metric_columns[4].metric(
+        "New Alerts",
+        int(live_result.get("new_alert_count", len(live_result.get("alerts", [])))),
+    )
+    live_metric_columns[5].metric(
+        "Inserted",
+        int(live_result.get("inserted", 0)),
+    )
+    live_metric_columns[6].metric(
+        "Duplicates Skipped",
+        int(live_result.get("duplicates_skipped", 0)),
+    )
+    live_metric_columns[7].metric(
+        "Database Total",
+        int(live_result.get("database_total", 0)),
+    )
+
+    st.caption(
+        f"Last Collection Time: {live_result.get('last_collection_time', 'N/A')}"
+    )
+    st.caption(
+        f"Last Error: {st.session_state['live_monitoring_last_error'] or 'None'}"
+    )
+
+    setup_status = pd.DataFrame(
+        st.session_state.get("live_monitoring_setup_status", {}).values()
+    )
+    if not setup_status.empty:
+        st.subheader("Automatic Monitoring Setup")
+        st.dataframe(
+            setup_status,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    channel_status = pd.DataFrame(
+        live_result.get("channel_results", {}).values()
+    )
+    if not channel_status.empty:
+        st.subheader("Channel Checkpoints")
+        st.dataframe(
+            channel_status,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    raw_live_events = live_result.get("raw_events", pd.DataFrame())
+    st.subheader("Recent Collected Raw Events")
+    if raw_live_events.empty:
+        st.info("No new raw events were collected.")
+    else:
+        st.dataframe(
+            raw_live_events.tail(100),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    normalized_live_events = live_result.get(
+        "normalized_events",
+        pd.DataFrame(),
+    )
+    st.subheader("Normalized Live Events")
+    if normalized_live_events.empty:
+        st.info("No live events were normalized.")
+    else:
+        st.dataframe(
+            normalized_live_events,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    live_alerts = live_result.get("alerts", pd.DataFrame())
+    st.subheader("Alerts Generated From This Collection")
+    if live_alerts.empty:
+        st.success("No alerts were generated from this collection.")
+    else:
+        st.dataframe(
+            live_alerts,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+fragment_run_every = (
+    int(st.session_state["live_monitoring_active_interval"])
+    if st.session_state["live_monitoring_enabled"]
+    else None
+)
+
+
+@streamlit_fragment(run_every=fragment_run_every)
+def automatic_live_monitor() -> None:
+    if not st.session_state["live_monitoring_enabled"]:
+        st.info("Automatic monitoring is stopped.")
+        return
+
+    if not st.session_state["live_collection_channels"]:
+        st.session_state["live_monitoring_last_error"] = (
+            "Select at least one Windows log channel."
+        )
+        st.warning(st.session_state["live_monitoring_last_error"])
+        return
+
+    try:
+        monitoring_result = run_monitoring_cycle(
+            channels=list(st.session_state["live_collection_channels"]),
+            max_events_per_channel=int(st.session_state["live_collection_limit"]),
+            seen_alert_ids=set(st.session_state["live_monitoring_seen_alert_ids"]),
+        )
+        st.session_state["live_monitoring_last_result"] = monitoring_result
+        st.session_state["live_monitoring_cycle_count"] += 1
+        st.session_state["live_monitoring_seen_alert_ids"] = set(
+            monitoring_result["seen_alert_ids"]
+        )
+        st.session_state["live_monitoring_last_error"] = None
+
+        new_alerts = monitoring_result.get("new_alerts", pd.DataFrame())
+        if isinstance(new_alerts, pd.DataFrame) and not new_alerts.empty:
+            warning_alerts = []
+            for _, alert in new_alerts.iterrows():
+                severity = str(
+                    alert.get("AlertSeverity", alert.get("Severity", ""))
+                ).strip().lower()
+                if severity in {"medium", "high", "critical"}:
+                    warning_alerts.append(alert)
+
+            for alert in warning_alerts[:3]:
+                st.toast(
+                    alert_notification_message(alert),
+                    icon="ðŸš¨",
+                )
+
+            remaining_count = len(warning_alerts) - 3
+            if remaining_count > 0:
+                st.toast(
+                    f"{remaining_count} additional alerts detected.",
+                    icon="ðŸš¨",
+                )
+    except Exception as error:
+        st.session_state["live_monitoring_last_error"] = str(error)
+        st.error(f"Automatic monitoring cycle failed: {error}")
+
+    show_live_result(st.session_state["live_monitoring_last_result"])
+
+
+automatic_live_monitor()
+
+visible_live_result = (
+    st.session_state["live_monitoring_last_result"]
+    if st.session_state["live_monitoring_enabled"]
+    else st.session_state["live_collection_result"]
+)
+
+if not st.session_state["live_monitoring_enabled"]:
+    show_live_result(visible_live_result)
 
 
 # =============================================================
