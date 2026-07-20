@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 import pandas as pd
 
+from detection.alert_contract import (
+    CANONICAL_ALERT_COLUMNS,
+    build_entities,
+    enrich_alert_record,
+    normalize_event_ids,
+    stable_alert_id,
+)
 
 ALERT_COLUMNS = [
     "AlertID",
@@ -21,6 +27,7 @@ ALERT_COLUMNS = [
     "FirstSeen",
     "LastSeen",
     "RelatedEventCount",
+    *CANONICAL_ALERT_COLUMNS,
 ]
 
 
@@ -65,11 +72,25 @@ def _create_alert(
     last_seen: pd.Timestamp,
     related_event_count: int,
     prefix: str,
+    rule_id: str = "",
+    title: str = "",
+    evidence_ids: list[str] | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> dict[str, Any]:
     """Create one alert record using the shared schema."""
 
-    return {
-        "AlertID": f"{prefix}-{uuid.uuid4().hex[:8]}",
+    record = {
+        "AlertID": stable_alert_id(
+            prefix,
+            [
+                rule_id or alert_type,
+                alert_time,
+                device_name,
+                user_name,
+                source_ip,
+                evidence,
+            ],
+        ),
         "AlertTime": alert_time,
         "DeviceName": device_name,
         "UserName": user_name,
@@ -84,6 +105,15 @@ def _create_alert(
         "LastSeen": last_seen,
         "RelatedEventCount": int(related_event_count),
     }
+    return enrich_alert_record(
+        record,
+        rule_id=rule_id or alert_type.upper().replace(" ", "_"),
+        title=title or alert_type,
+        mitre_techniques=[technique],
+        entities=build_entities(machine=device_name, user=user_name, source_ip=source_ip),
+        metadata=metadata,
+        evidence_ids=evidence_ids,
+    )
 
 
 def detect_failed_login_bursts(
@@ -183,6 +213,9 @@ def detect_failed_login_bursts(
                         last_seen=window_events.iloc[-1]["EventTime"],
                         related_event_count=event_count,
                         prefix="login-burst",
+                        rule_id="AUTH_FAILED_LOGIN_BURST",
+                        title="Failed login burst",
+                        evidence_ids=normalize_event_ids(window_events),
                     )
                 )
                 alert_triggered = True
@@ -288,6 +321,9 @@ def detect_success_after_failures(
                         last_seen=current_time,
                         related_event_count=len(recent_failures) + 1,
                         prefix="success-after-failure",
+                        rule_id="AUTH_SUCCESS_AFTER_FAILURES",
+                        title="Successful login after failures",
+                        evidence_ids=normalize_event_ids(pd.concat([recent_failures, row.to_frame().T])),
                     )
                 )
                 alert_triggered = True
@@ -295,4 +331,106 @@ def detect_success_after_failures(
     if not alerts:
         return _empty_alert_frame()
 
+    return pd.DataFrame(alerts, columns=ALERT_COLUMNS)
+
+
+def detect_password_spray(
+    events: pd.DataFrame,
+    minimum_failures: int = 8,
+    minimum_unique_users: int = 5,
+    window_minutes: int = 10,
+    privileged_users: set[str] | None = None,
+) -> pd.DataFrame:
+    """Detect one source identity failing authentication against many users."""
+
+    if minimum_failures < 1 or minimum_unique_users < 1 or window_minutes < 1:
+        raise ValueError("password spray thresholds and window must be positive.")
+
+    _require_columns(
+        events,
+        {"EventTime", "DeviceName", "UserName", "EventType", "EventResult", "SourceIP"},
+        "detect_password_spray",
+    )
+
+    if events.empty:
+        return _empty_alert_frame()
+
+    privileged_users = {user.lower() for user in (privileged_users or {"admin", "administrator", "root", "cfo.user"})}
+    working_events = events.copy()
+    working_events["EventTime"] = pd.to_datetime(working_events["EventTime"], errors="coerce")
+    working_events = working_events.dropna(subset=["EventTime"]).sort_values("EventTime").reset_index(drop=True)
+    failed_auth = working_events[
+        (working_events["EventType"].astype(str).str.lower() == "authentication")
+        & (working_events["EventResult"].astype(str).str.lower() == "failure")
+    ].copy()
+    if failed_auth.empty:
+        return _empty_alert_frame()
+
+    alerts: list[dict[str, Any]] = []
+    for source_ip, group in failed_auth.groupby("SourceIP", dropna=False):
+        group = group.sort_values("EventTime").reset_index(drop=True)
+        emitted = False
+        for start_index in range(len(group)):
+            start_time = group.iloc[start_index]["EventTime"]
+            end_time = start_time + pd.Timedelta(minutes=window_minutes)
+            window_events = group[
+                (group["EventTime"] >= start_time)
+                & (group["EventTime"] <= end_time)
+            ]
+            unique_users = {
+                str(user).strip()
+                for user in window_events["UserName"].tolist()
+                if str(user).strip()
+            }
+            if len(window_events) < minimum_failures or len(unique_users) < minimum_unique_users:
+                continue
+
+            privileged_hits = sorted(user for user in unique_users if user.lower() in privileged_users)
+            success_after = working_events[
+                (working_events["SourceIP"].astype(str) == str(source_ip))
+                & (working_events["EventType"].astype(str).str.lower() == "authentication")
+                & (working_events["EventResult"].astype(str).str.lower() == "success")
+                & (working_events["EventTime"] >= window_events.iloc[0]["EventTime"])
+                & (working_events["EventTime"] <= window_events.iloc[-1]["EventTime"] + pd.Timedelta(minutes=15))
+            ]
+            severity = "Critical" if privileged_hits or not success_after.empty else "High"
+            confidence = min(100.0, 70.0 + len(unique_users) * 3.0 + len(window_events) * 1.5 + (10.0 if privileged_hits else 0.0) + (8.0 if not success_after.empty else 0.0))
+            device_name = str(window_events.iloc[0].get("DeviceName", ""))
+            evidence = (
+                f"{len(window_events)} failed authentications from {source_ip} "
+                f"against {len(unique_users)} users within {window_minutes} minutes"
+            )
+            alerts.append(
+                _create_alert(
+                    alert_time=window_events.iloc[-1]["EventTime"],
+                    device_name=device_name,
+                    user_name=",".join(sorted(unique_users)),
+                    source_ip=str(source_ip),
+                    alert_type="Password Spray",
+                    severity=severity,
+                    confidence=confidence,
+                    tactic="Credential Access",
+                    technique="T1110.003 - Password Spraying",
+                    evidence=evidence,
+                    first_seen=window_events.iloc[0]["EventTime"],
+                    last_seen=window_events.iloc[-1]["EventTime"],
+                    related_event_count=len(window_events),
+                    prefix="password-spray",
+                    rule_id="AUTH_PASSWORD_SPRAY",
+                    title="Password spray attempt",
+                    evidence_ids=normalize_event_ids(window_events),
+                    metadata={
+                        "UniqueTargetedUsers": len(unique_users),
+                        "PrivilegedUsersTargeted": privileged_hits,
+                        "SuccessfulAuthenticationAfterSpray": not success_after.empty,
+                    },
+                )
+            )
+            emitted = True
+            break
+        if emitted:
+            continue
+
+    if not alerts:
+        return _empty_alert_frame()
     return pd.DataFrame(alerts, columns=ALERT_COLUMNS)

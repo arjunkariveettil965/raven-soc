@@ -3,9 +3,9 @@ from __future__ import annotations
 import pandas as pd
 
 from detection.authentication_rules import ALERT_COLUMNS
-from detection.authentication_rules import detect_failed_login_bursts, detect_success_after_failures
-from detection.network_rules import detect_suspicious_network_connections
-from detection.process_rules import detect_suspicious_powershell
+from detection.authentication_rules import detect_failed_login_bursts, detect_password_spray, detect_success_after_failures
+from detection.network_rules import detect_command_and_control_beaconing, detect_suspicious_network_connections
+from detection.process_rules import detect_malware_delivery_activity, detect_suspicious_powershell
 
 
 def analyze_security_events(events: pd.DataFrame) -> pd.DataFrame:
@@ -29,13 +29,25 @@ def analyze_security_events(events: pd.DataFrame) -> pd.DataFrame:
     if not success_after_failure_alerts.empty:
         alert_frames.append(success_after_failure_alerts)
 
+    password_spray_alerts = detect_password_spray(events)
+    if not password_spray_alerts.empty:
+        alert_frames.append(password_spray_alerts)
+
     powershell_alerts = detect_suspicious_powershell(events)
     if not powershell_alerts.empty:
         alert_frames.append(powershell_alerts)
 
+    malware_alerts = detect_malware_delivery_activity(events)
+    if not malware_alerts.empty:
+        alert_frames.append(malware_alerts)
+
     network_alerts = detect_suspicious_network_connections(events)
     if not network_alerts.empty:
         alert_frames.append(network_alerts)
+
+    beaconing_alerts = detect_command_and_control_beaconing(events)
+    if not beaconing_alerts.empty:
+        alert_frames.append(beaconing_alerts)
 
     if not alert_frames:
         return pd.DataFrame(columns=ALERT_COLUMNS)
@@ -59,6 +71,14 @@ def analyze_security_events(events: pd.DataFrame) -> pd.DataFrame:
         combined_alerts["ConfidenceScore"],
         errors="coerce",
     ).fillna(0)
+    if "Confidence" in combined_alerts.columns:
+        combined_alerts["Confidence"] = combined_alerts["ConfidenceScore"]
+    if "Severity" in combined_alerts.columns:
+        combined_alerts["Severity"] = combined_alerts["AlertSeverity"]
+    if "TimeGenerated" in combined_alerts.columns:
+        combined_alerts["TimeGenerated"] = combined_alerts["AlertTime"]
+    if "MachineName" in combined_alerts.columns:
+        combined_alerts["MachineName"] = combined_alerts["DeviceName"]
 
     combined_alerts = combined_alerts.sort_values(
         ["AlertTime", "ConfidenceScore"],

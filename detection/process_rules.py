@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import re
-import uuid
 from typing import Any
 
 import pandas as pd
 
+from detection.alert_contract import (
+    build_entities,
+    enrich_alert_record,
+    normalize_event_ids,
+    stable_alert_id,
+)
 from detection.authentication_rules import ALERT_COLUMNS
 
 
@@ -20,6 +25,32 @@ SUSPICIOUS_PATTERNS = [
     "rundll32",
     "regsvr32",
 ]
+DOWNLOAD_CAPABLE_PROCESSES = {
+    "powershell.exe",
+    "powershell",
+    "pwsh",
+    "cmd.exe",
+    "cmd",
+    "certutil.exe",
+    "certutil",
+    "bitsadmin.exe",
+    "bitsadmin",
+    "mshta.exe",
+    "mshta",
+}
+LOLBIN_PROCESSES = {
+    "rundll32.exe",
+    "rundll32",
+    "regsvr32.exe",
+    "regsvr32",
+    "wscript.exe",
+    "wscript",
+    "cscript.exe",
+    "cscript",
+}
+USER_EXECUTION_PARENTS = {"chrome.exe", "msedge.exe", "firefox.exe", "winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe"}
+DOWNLOAD_PATTERNS = {"http://", "https://", "downloadstring", "invoke-webrequest", "iwr ", "curl ", "wget ", "urlcache", "/transfer"}
+EXECUTION_EXTENSIONS = {".exe", ".dll", ".ps1", ".vbs", ".js", ".hta", ".scr", ".bat"}
 
 
 def _empty_alert_frame() -> pd.DataFrame:
@@ -81,9 +112,8 @@ def detect_suspicious_powershell(events: pd.DataFrame) -> pd.DataFrame:
         if not matched_patterns:
             continue
 
-        alerts.append(
-            {
-                "AlertID": f"powershell-{uuid.uuid4().hex[:8]}",
+        record = {
+                "AlertID": stable_alert_id("powershell", ["PROC_SUSPICIOUS_POWERSHELL", row["EventTime"], row.get("DeviceName"), row.get("UserName"), row.get("CommandLine")]),
                 "AlertTime": row["EventTime"],
                 "DeviceName": row.get("DeviceName"),
                 "UserName": row.get("UserName"),
@@ -98,9 +128,119 @@ def detect_suspicious_powershell(events: pd.DataFrame) -> pd.DataFrame:
                 "LastSeen": row["EventTime"],
                 "RelatedEventCount": 1,
             }
+        alerts.append(
+            enrich_alert_record(
+                record,
+                rule_id="PROC_SUSPICIOUS_POWERSHELL",
+                title="Suspicious PowerShell execution",
+                process_name=row.get("ProcessName"),
+                mitre_techniques=["T1059.001 - PowerShell"],
+                entities=build_entities(
+                    machine=row.get("DeviceName"),
+                    user=row.get("UserName"),
+                    source_ip=row.get("SourceIP"),
+                    process=row.get("ProcessName"),
+                ),
+                metadata={"MatchedPatterns": matched_patterns},
+                evidence_ids=normalize_event_ids(row.to_frame().T),
+            )
         )
 
     if not alerts:
         return _empty_alert_frame()
 
+    return pd.DataFrame(alerts, columns=ALERT_COLUMNS)
+
+
+def _process_basename(value: object) -> str:
+    return str(value or "").strip().lower().split("\\")[-1]
+
+
+def detect_malware_delivery_activity(events: pd.DataFrame) -> pd.DataFrame:
+    """Detect download-capable execution and suspicious file execution alerts."""
+
+    _require_columns(events)
+    if events.empty:
+        return _empty_alert_frame()
+
+    working_events = events.copy()
+    working_events["EventTime"] = pd.to_datetime(working_events["EventTime"], errors="coerce")
+    working_events = working_events.dropna(subset=["EventTime"]).sort_values("EventTime").reset_index(drop=True)
+    if working_events.empty:
+        return _empty_alert_frame()
+
+    alerts: list[dict[str, Any]] = []
+    for _, row in working_events.iterrows():
+        process_name = _process_basename(row.get("ProcessName"))
+        command_line = str(row.get("CommandLine", "")).lower()
+        event_type = str(row.get("EventType", "")).lower()
+        parent_process = _process_basename(row.get("ParentProcessName", ""))
+        candidate = f"{process_name} {command_line}"
+
+        matched_download = [pattern for pattern in DOWNLOAD_PATTERNS if pattern in candidate]
+        if process_name in DOWNLOAD_CAPABLE_PROCESSES and matched_download:
+            technique = "T1059.001 - PowerShell" if "powershell" in process_name or "pwsh" in process_name else "T1105 - Ingress Tool Transfer"
+            record = {
+                "AlertID": stable_alert_id("malware-download", ["PROC_DOWNLOAD_CAPABLE", row["EventTime"], row.get("DeviceName"), row.get("UserName"), command_line]),
+                "AlertTime": row["EventTime"],
+                "DeviceName": row.get("DeviceName"),
+                "UserName": row.get("UserName"),
+                "SourceIP": row.get("SourceIP"),
+                "AlertType": "Suspicious Download Command",
+                "AlertSeverity": "High",
+                "ConfidenceScore": 82.0,
+                "MITRETactic": "Command and Control",
+                "MITRETechnique": technique,
+                "Evidence": f"{row.get('ProcessName')} used download-capable indicators: {', '.join(matched_download)}",
+                "FirstSeen": row["EventTime"],
+                "LastSeen": row["EventTime"],
+                "RelatedEventCount": 1,
+            }
+            alerts.append(
+                enrich_alert_record(
+                    record,
+                    rule_id="PROC_DOWNLOAD_CAPABLE",
+                    title="Suspicious download-capable process",
+                    process_name=row.get("ProcessName"),
+                    mitre_techniques=[technique, "T1105 - Ingress Tool Transfer"],
+                    evidence_ids=normalize_event_ids(row.to_frame().T),
+                    metadata={"MatchedDownloadIndicators": matched_download},
+                )
+            )
+
+        execution_indicator = any(extension in command_line for extension in EXECUTION_EXTENSIONS)
+        lolbin_indicator = process_name in LOLBIN_PROCESSES
+        user_execution = parent_process in USER_EXECUTION_PARENTS and execution_indicator
+        if (lolbin_indicator and execution_indicator) or user_execution or ("process" in event_type and execution_indicator and process_name not in DOWNLOAD_CAPABLE_PROCESSES):
+            technique = "T1218 - System Binary Proxy Execution" if lolbin_indicator else "T1204 - User Execution"
+            record = {
+                "AlertID": stable_alert_id("malware-exec", ["PROC_SUSPICIOUS_EXECUTION", row["EventTime"], row.get("DeviceName"), row.get("UserName"), process_name, command_line]),
+                "AlertTime": row["EventTime"],
+                "DeviceName": row.get("DeviceName"),
+                "UserName": row.get("UserName"),
+                "SourceIP": row.get("SourceIP"),
+                "AlertType": "Suspicious File Execution",
+                "AlertSeverity": "High",
+                "ConfidenceScore": 84.0,
+                "MITRETactic": "Execution",
+                "MITRETechnique": technique,
+                "Evidence": f"{row.get('ProcessName')} execution context matched malware-delivery indicators",
+                "FirstSeen": row["EventTime"],
+                "LastSeen": row["EventTime"],
+                "RelatedEventCount": 1,
+            }
+            alerts.append(
+                enrich_alert_record(
+                    record,
+                    rule_id="PROC_SUSPICIOUS_EXECUTION",
+                    title="Suspicious executable or script execution",
+                    process_name=row.get("ProcessName"),
+                    mitre_techniques=[technique],
+                    evidence_ids=normalize_event_ids(row.to_frame().T),
+                    metadata={"ParentProcessName": parent_process, "ExecutionIndicator": execution_indicator},
+                )
+            )
+
+    if not alerts:
+        return _empty_alert_frame()
     return pd.DataFrame(alerts, columns=ALERT_COLUMNS)

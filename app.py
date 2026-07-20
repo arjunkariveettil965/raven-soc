@@ -738,9 +738,15 @@ if synthetic_result is not None:
     incident_details = {
         "Incident ID": incident_record.get("IncidentID", "N/A"),
         "Incident Type": incident_record.get("IncidentType", "Unknown"),
+        "Correlation Pattern": incident_record.get("CorrelationPattern", incident_record.get("PatternID", "N/A")),
+        "Matched Alerts": incident_record.get("RelatedAlertTypes", []),
+        "Correlation Window": incident_record.get("CorrelationWindowMinutes", "N/A"),
         "Affected Device": incident_record.get("AffectedDevice", "N/A"),
         "Affected User": incident_record.get("AffectedUser", "N/A"),
         "Source IP": incident_record.get("SourceIP", "N/A"),
+        "Recommended Action": incident_record.get("RecommendedActionID", "N/A"),
+        "Target": incident_record.get("Target", "N/A"),
+        "Requires Approval": incident_record.get("RequiresApproval", "N/A"),
         "First Seen": incident_record.get("FirstSeen", "N/A"),
         "Last Seen": incident_record.get("LastSeen", "N/A"),
     }

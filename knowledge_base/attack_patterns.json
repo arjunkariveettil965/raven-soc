@@ -43,5 +43,32 @@
     "investigation_steps": ["Review the suspicious network destination.", "Confirm whether the endpoint should be isolated."],
     "recommended_action_id": "ISOLATE_DEVICE",
     "default_severity": "High"
+  },
+  {
+    "pattern_name": "Password Spray Attempt",
+    "required_alert_types": ["Password Spray"],
+    "mitre_techniques": ["T1110.003 - Password Spraying"],
+    "summary": "One source attempted authentication against multiple distinct users in a short time window.",
+    "investigation_steps": ["Review all targeted accounts.", "Check for successful authentication after the spray.", "Consider blocking the source IP in simulation."],
+    "recommended_action_id": "BLOCK_DESTINATION_IP",
+    "default_severity": "High"
+  },
+  {
+    "pattern_name": "Malware Download and Execution",
+    "required_alert_types": ["Suspicious Download Command", "Suspicious File Execution"],
+    "mitre_techniques": ["T1105 - Ingress Tool Transfer", "T1059.001 - PowerShell", "T1218 - System Binary Proxy Execution", "T1204 - User Execution"],
+    "summary": "Download-capable execution was followed by suspicious executable or script activity.",
+    "investigation_steps": ["Review process command lines.", "Inspect downloaded artifacts.", "Confirm whether the endpoint should be isolated."],
+    "recommended_action_id": "ISOLATE_DEVICE",
+    "default_severity": "High"
+  },
+  {
+    "pattern_name": "Command-and-Control Beaconing",
+    "required_alert_types": ["Command-and-Control Beaconing"],
+    "mitre_techniques": ["T1071 - Application Layer Protocol"],
+    "summary": "The endpoint made repeated regular outbound connections to the same external destination.",
+    "investigation_steps": ["Review destination reputation from local context.", "Inspect the initiating process.", "Assess endpoint isolation in simulation."],
+    "recommended_action_id": "ISOLATE_DEVICE",
+    "default_severity": "High"
   }
 ]

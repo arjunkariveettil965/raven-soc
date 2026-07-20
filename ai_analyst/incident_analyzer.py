@@ -107,8 +107,20 @@ def analyze_incident_deterministically(
         else:
             summary = "Observed suspicious activity without a strong pattern match."
 
-    if threat_type == "Multi-Stage Intrusion" or threat_type == "Account Compromise with Malicious Execution" or threat_type == "Account Compromise with Suspicious Execution" or threat_type == "Possible Malware Execution and Command and Control":
+    incident_action = _normalize_text(incident_data.get("RecommendedActionID"))
+    if incident_action in {
+        "ISOLATE_DEVICE",
+        "DISABLE_USER",
+        "BLOCK_DESTINATION_IP",
+        "COLLECT_EVIDENCE",
+        "INCREASE_MONITORING",
+        "NO_ACTION",
+    }:
+        recommended_action = incident_action
+    elif threat_type == "Multi-Stage Intrusion" or threat_type == "Account Compromise with Malicious Execution" or threat_type == "Account Compromise with Suspicious Execution" or threat_type == "Possible Malware Execution and Command and Control" or threat_type == "Malware Download and Execution" or threat_type == "Command-and-Control Beaconing":
         recommended_action = "ISOLATE_DEVICE"
+    elif threat_type == "Password Spray Attempt":
+        recommended_action = "BLOCK_DESTINATION_IP" if source_ip else "INCREASE_MONITORING"
     elif threat_type == "Possible Account Compromise":
         recommended_action = "DISABLE_USER"
     elif threat_type == "Brute-Force Attempt":
@@ -133,6 +145,7 @@ def analyze_incident_deterministically(
 
     requires_approval = bool(
         environment_profile.get("RequiresHumanApproval", False)
+        or bool(incident_data.get("RequiresApproval", False))
         or recommended_action in {"ISOLATE_DEVICE", "DISABLE_USER"}
         or confidence < int(environment_profile.get("automatic_response_threshold", 70))
         or (affected_device and affected_device.lower() in {item.lower() for item in environment_profile.get("critical_devices", []) or []})

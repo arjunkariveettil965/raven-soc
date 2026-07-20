@@ -1,0 +1,61 @@
+[
+  {
+    "PatternID": "MULTI_STAGE_INTRUSION",
+    "IncidentType": "Multi-Stage Intrusion",
+    "RequiredAlertTypes": [
+      "Failed Login Burst",
+      "Successful Login After Failures",
+      "Suspicious PowerShell",
+      "Suspicious Outbound Connection"
+    ],
+    "OptionalAlertTypes": [],
+    "WindowMinutes": 30,
+    "EntityMatch": ["DeviceName"],
+    "MITRETechniques": [
+      "T1110 - Brute Force",
+      "T1078 - Valid Accounts",
+      "T1059.001 - PowerShell",
+      "T1071 - Application Layer Protocol"
+    ],
+    "RecommendedActionID": "ISOLATE_DEVICE",
+    "RequiresApproval": true
+  },
+  {
+    "PatternID": "PASSWORD_SPRAY_ATTEMPT",
+    "IncidentType": "Password Spray Attempt",
+    "RequiredAlertTypes": ["Password Spray"],
+    "OptionalAlertTypes": ["Successful Login After Failures"],
+    "WindowMinutes": 30,
+    "EntityMatch": ["SourceIP"],
+    "MITRETechniques": ["T1110.003 - Password Spraying"],
+    "RecommendedActionID": "BLOCK_DESTINATION_IP",
+    "RequiresApproval": false
+  },
+  {
+    "PatternID": "MALWARE_DOWNLOAD_EXECUTION",
+    "IncidentType": "Malware Download and Execution",
+    "RequiredAlertTypes": ["Suspicious Download Command", "Suspicious File Execution"],
+    "OptionalAlertTypes": ["Suspicious PowerShell", "Suspicious Outbound Connection"],
+    "WindowMinutes": 30,
+    "EntityMatch": ["DeviceName"],
+    "MITRETechniques": [
+      "T1105 - Ingress Tool Transfer",
+      "T1059.001 - PowerShell",
+      "T1218 - System Binary Proxy Execution",
+      "T1204 - User Execution"
+    ],
+    "RecommendedActionID": "ISOLATE_DEVICE",
+    "RequiresApproval": true
+  },
+  {
+    "PatternID": "COMMAND_CONTROL_BEACONING",
+    "IncidentType": "Command-and-Control Beaconing",
+    "RequiredAlertTypes": ["Command-and-Control Beaconing"],
+    "OptionalAlertTypes": ["Suspicious Outbound Connection", "Suspicious PowerShell", "Suspicious File Execution"],
+    "WindowMinutes": 30,
+    "EntityMatch": ["DeviceName", "DestinationIP"],
+    "MITRETechniques": ["T1071 - Application Layer Protocol"],
+    "RecommendedActionID": "ISOLATE_DEVICE",
+    "RequiresApproval": true
+  }
+]

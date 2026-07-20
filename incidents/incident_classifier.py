@@ -49,6 +49,7 @@ def classify_incidents(incidents: pd.DataFrame) -> pd.DataFrame:
     classified_rows: list[dict[str, object]] = []
 
     for _, incident in incidents.iterrows():
+        existing_incident_type = _normalize_text(incident.get("CorrelationPattern"))
         alert_types = {
             _normalize_text(alert_type)
             for alert_type in incident.get("RelatedAlertTypes", [])
@@ -59,7 +60,15 @@ def classify_incidents(incidents: pd.DataFrame) -> pd.DataFrame:
             if tactic_name and tactic_name not in attack_stages:
                 attack_stages.append(tactic_name)
 
-        if (
+        if existing_incident_type in {
+            "Password Spray Attempt",
+            "Malware Download and Execution",
+            "Command-and-Control Beaconing",
+            "Multi-Stage Intrusion",
+        }:
+            incident_type = existing_incident_type
+            classification_reason = f"Matched correlation pattern: {existing_incident_type}."
+        elif (
             len(alert_types) >= 4
             and "Credential Access" in attack_stages
             and "Execution" in attack_stages
