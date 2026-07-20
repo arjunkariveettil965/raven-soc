@@ -828,6 +828,36 @@ if synthetic_result is not None:
         "Fallback Reason",
         analyst_metadata.get("FallbackReason") or "None",
     )
+    diagnostic_columns = st.columns(2)
+    diagnostic_columns[0].metric(
+        "Normalization Applied",
+        "Yes" if analyst_metadata.get("NormalizationApplied") else "No",
+    )
+    diagnostic_columns[1].metric(
+        "Raw Model Output Available",
+        "Yes" if analyst_metadata.get("RawModelOutputAvailable") else "No",
+    )
+    fallback_reason = analyst_metadata.get("FallbackReason")
+    if fallback_reason:
+        if analyst_metadata.get("UsedFallback"):
+            st.error(str(fallback_reason))
+        else:
+            st.warning(str(fallback_reason))
+
+    validation_errors = analyst_metadata.get("ValidationErrors", [])
+    if validation_errors:
+        st.markdown("**ValidationErrors**")
+        st.json(validation_errors)
+
+    with st.expander("Hybrid Analyst Diagnostics", expanded=False):
+        if analyst_metadata.get("UsedFallback"):
+            raw_model_output = analyst_metadata.get("RawModelOutput")
+            if raw_model_output:
+                st.code(str(raw_model_output)[:5000])
+            else:
+                st.info("No local model output was captured for this fallback.")
+        else:
+            st.info("No Hybrid Analyst fallback occurred.")
     st.caption(mode_captions.get(str(analyst_metadata.get("AnalystMode", "deterministic")), mode_captions["deterministic"]))
 
     st.subheader("6. Defender Action Center")

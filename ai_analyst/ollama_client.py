@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from typing import Any
@@ -11,6 +12,14 @@ DEFAULT_OLLAMA_MODEL = "gemma3:1b"
 
 def _join_url(base_url: str, path: str) -> str:
     return f"{base_url.rstrip('/')}{path}"
+
+
+def _extract_json_content(content: str) -> str:
+    stripped = content.strip()
+    fenced_match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", stripped, flags=re.IGNORECASE | re.DOTALL)
+    if fenced_match:
+        return fenced_match.group(1).strip()
+    return stripped
 
 
 def check_ollama_health(
@@ -98,7 +107,7 @@ def generate_structured_analysis(
         raise RuntimeError("Ollama response message content was empty.")
 
     try:
-        analysis = json.loads(content)
+        analysis = json.loads(_extract_json_content(content))
     except ValueError as error:
         raise RuntimeError(f"Ollama returned invalid JSON: {error}") from error
 

@@ -53,6 +53,15 @@ def test_structured_analysis_parses_valid_json():
     assert result == analysis
 
 
+def test_structured_analysis_parses_markdown_fenced_json():
+    analysis = {"Status": "benign"}
+    payload = {"message": {"content": f"```json\n{json.dumps(analysis)}\n```"}}
+    with patch("urllib.request.urlopen", return_value=MockResponse(payload)):
+        result = generate_structured_analysis("prompt", {"type": "object"})
+
+    assert result == analysis
+
+
 def test_structured_analysis_invalid_json_raises_runtime_error():
     payload = {"message": {"content": "not-json"}}
     with patch("urllib.request.urlopen", return_value=MockResponse(payload)):
