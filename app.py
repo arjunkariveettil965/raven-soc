@@ -8,6 +8,7 @@ from dashboard.incident_demo import (
     run_synthetic_defender_response,
     run_synthetic_incident_pipeline,
 )
+from data_generation.scenario_lab import list_scenarios
 from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, check_ollama_health
 from database.database import (
     count_security_events,
@@ -115,6 +116,8 @@ for state_key, default_value in {
     "live_monitoring_start_from_current": True,
     "live_monitoring_setup_status": {},
     "live_checkpoint_reset_result": None,
+    "scenario_lab_seed": 20260721,
+    "scenario_lab_reveal_answer": False,
 }.items():
     if state_key not in st.session_state:
         st.session_state[state_key] = default_value
@@ -552,6 +555,50 @@ incident_lab_environment = st.selectbox(
     key="incident_lab_environment",
 )
 
+available_scenarios = list_scenarios()
+scenario_options = {
+    scenario["ScenarioName"]: scenario["ScenarioID"]
+    for scenario in available_scenarios
+}
+scenario_mode = st.radio(
+    "Scenario Mode",
+    ["Select Scenario", "Random Scenario"],
+    horizontal=True,
+    key="scenario_lab_mode",
+)
+selected_scenario_label = st.selectbox(
+    "Scenario",
+    list(scenario_options.keys()),
+    disabled=scenario_mode == "Random Scenario",
+    key="scenario_lab_scenario",
+)
+scenario_difficulty = st.selectbox(
+    "Difficulty",
+    ["Easy", "Medium", "Hard"],
+    index=1,
+    key="scenario_lab_difficulty",
+)
+scenario_noise = st.selectbox(
+    "Noise level",
+    ["None", "Low", "Medium", "High"],
+    index=1,
+    key="scenario_lab_noise",
+)
+seed_columns = st.columns([3, 1])
+with seed_columns[0]:
+    scenario_seed = st.number_input(
+        "Random seed",
+        min_value=0,
+        max_value=999999999,
+        value=int(st.session_state["scenario_lab_seed"]),
+        step=1,
+        key="scenario_lab_seed_input",
+    )
+with seed_columns[1]:
+    if st.button("Generate New Seed"):
+        st.session_state["scenario_lab_seed"] = int(datetime.now(UTC).timestamp()) % 1000000000
+        st.rerun()
+
 analyst_mode_label = st.selectbox(
     "Analyst mode",
     [
@@ -601,7 +648,7 @@ run_lab_col, reset_lab_col = st.columns([3, 1])
 
 with run_lab_col:
     run_synthetic_attack = st.button(
-        "Run Synthetic Multi-Stage Attack",
+        "Run Scenario",
         type="primary",
         width="stretch",
     )
@@ -617,6 +664,7 @@ if reset_incident_lab:
     st.session_state["synthetic_defender_response"] = None
     st.session_state["synthetic_action_approved"] = False
     st.session_state["synthetic_action_rejected"] = False
+    st.session_state["scenario_lab_reveal_answer"] = False
     st.rerun()
 
 if run_synthetic_attack:
@@ -627,11 +675,18 @@ if run_synthetic_attack:
                     environment_name=incident_lab_environment,
                     analyst_mode=incident_lab_analyst_mode,
                     ollama_model=incident_lab_ollama_model,
+                    scenario_name=scenario_options[selected_scenario_label],
+                    scenario_mode=scenario_mode,
+                    seed=int(scenario_seed),
+                    difficulty=scenario_difficulty,
+                    noise_level=scenario_noise,
                 )
             )
         st.session_state["synthetic_defender_response"] = None
         st.session_state["synthetic_action_approved"] = False
         st.session_state["synthetic_action_rejected"] = False
+        st.session_state["scenario_lab_seed"] = int(scenario_seed)
+        st.session_state["scenario_lab_reveal_answer"] = False
         st.success("Synthetic incident pipeline completed successfully.")
     except Exception as error:
         st.session_state["synthetic_pipeline_result"] = None
@@ -649,6 +704,8 @@ if synthetic_result is not None:
     analyst_analysis = synthetic_result["analysis"]
     environment_profile = synthetic_result["environment_profile"]
     analyst_metadata = synthetic_result.get("analyst_metadata", {})
+    scenario = synthetic_result.get("scenario", {})
+    scenario_evaluation = synthetic_result.get("scenario_evaluation", {})
 
     if isinstance(selected_incident, pd.Series):
         incident_record = selected_incident.to_dict()
@@ -671,6 +728,34 @@ if synthetic_result is not None:
     )
     summary_columns[3].metric("Incident Confidence", incident_confidence)
     summary_columns[4].metric("Analyst Confidence", analyst_confidence)
+    scenario_display_name = (
+        "Unknown Synthetic Incident"
+        if scenario.get("ScenarioID") and st.session_state.get("scenario_lab_mode") == "Random Scenario" and not st.session_state.get("scenario_lab_reveal_answer")
+        else scenario.get("ScenarioName", "Synthetic Scenario")
+    )
+    st.caption(
+        f"Scenario: {scenario_display_name} | Seed: {scenario.get('Seed', 'N/A')} | "
+        f"Difficulty: {scenario.get('Difficulty', 'N/A')} | "
+        f"Attack events: {len(scenario.get('AttackEventIDs', []))} | "
+        f"Benign events: {len(scenario.get('BenignEventIDs', []))}"
+    )
+    reveal_answer = st.checkbox(
+        "Reveal Scenario Answer",
+        value=bool(st.session_state.get("scenario_lab_reveal_answer")),
+        key="scenario_lab_reveal_answer",
+    )
+    if reveal_answer:
+        st.json(
+            {
+                "Expected Scenario": scenario.get("ScenarioName"),
+                "Expected Incident Type": scenario.get("ExpectedIncidentType"),
+                "Detection Matched": scenario_evaluation.get("OverallPassed"),
+                "Missing Expected Alert Types": scenario_evaluation.get("MissingExpectedAlerts", []),
+                "Unexpected Correlated Incident Types": scenario_evaluation.get("UnexpectedIncidents", []),
+                "Expected MITRE Techniques": scenario.get("ExpectedMITRETechniques", []),
+                "Actual MITRE Techniques": incident_record.get("MITRETechniques", []),
+            }
+        )
 
     with st.expander("1. Synthetic Security Events", expanded=False):
         event_columns = [

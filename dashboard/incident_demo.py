@@ -14,7 +14,9 @@ from ai_analyst import agent as analyst_agent
 from ai_analyst import environment_adapter
 from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, check_ollama_health
 from data_generation import attack_simulator
+from data_generation.scenario_lab import generate_random_scenario, generate_scenario
 from detection import alert_engine
+from dashboard.scenario_evaluation import evaluate_scenario_result
 from incidents import correlation_engine, incident_classifier, timeline_builder
 from response import defender_agent
 
@@ -120,13 +122,63 @@ def run_synthetic_incident_pipeline(
     analyst_mode: str = "deterministic",
     ollama_model: str = DEFAULT_OLLAMA_MODEL,
     ollama_base_url: str = DEFAULT_OLLAMA_URL,
+    scenario_name: str = "multi_stage_intrusion",
+    scenario_mode: str = "Select Scenario",
+    seed: int | None = None,
+    difficulty: str = "Medium",
+    noise_level: str = "Low",
 ) -> dict[str, object]:
     """Run one safe synthetic attack through the complete RAVEN-SOC pipeline."""
 
-    events = _as_dataframe(
-        attack_simulator.generate_multistage_attack_scenario(),
-        "synthetic events",
-    )
+    if scenario_mode == "Random Scenario":
+        scenario = generate_random_scenario(
+            seed=seed,
+            difficulty=difficulty,
+            noise_level=noise_level,
+            environment=environment_name,
+        )
+    elif scenario_name == "multi_stage_intrusion" and seed is None and difficulty == "Medium" and noise_level == "Low":
+        events = _as_dataframe(
+            attack_simulator.generate_multistage_attack_scenario(),
+            "synthetic events",
+        )
+        scenario = {
+            "ScenarioID": "multi_stage_intrusion",
+            "ScenarioName": "Multi-Stage Intrusion",
+            "Description": "Legacy fixed multi-stage synthetic scenario.",
+            "Difficulty": difficulty,
+            "Seed": seed,
+            "GeneratedEvents": events,
+            "ExpectedIncidentType": "Multi-Stage Intrusion",
+            "ExpectedMinimumSeverity": "Critical",
+            "ExpectedMITRETechniques": [
+                "T1110 - Brute Force",
+                "T1078 - Valid Accounts",
+                "T1059.001 - PowerShell",
+                "T1071 - Application Layer Protocol",
+            ],
+            "ExpectedTarget": "CFO-PC",
+            "ExpectedAlertTypes": [
+                "Failed Login Burst",
+                "Successful Login After Failures",
+                "Suspicious PowerShell",
+                "Suspicious Outbound Connection",
+            ],
+            "ExpectedRecommendedActions": ["ISOLATE_DEVICE"],
+            "AttackEventIDs": [],
+            "BenignEventIDs": [],
+            "GenerationMetadata": {"Environment": environment_name, "NoiseLevel": noise_level},
+        }
+    else:
+        scenario = generate_scenario(
+            scenario_name,
+            seed=seed,
+            difficulty=difficulty,
+            noise_level=noise_level,
+            environment=environment_name,
+        )
+
+    events = _as_dataframe(scenario["GeneratedEvents"], "synthetic events")
 
     alerts = _as_dataframe(
         alert_engine.analyze_security_events(events=events),
@@ -192,7 +244,15 @@ def run_synthetic_incident_pipeline(
             "error": "Health check not required in deterministic mode.",
         }
 
+    evaluation = evaluate_scenario_result(
+        scenario=scenario,
+        alerts=alerts,
+        incidents=incidents,
+    )
+
     return {
+        "scenario": scenario,
+        "scenario_evaluation": evaluation,
         "events": events,
         "alerts": alerts,
         "incidents": incidents,
