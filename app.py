@@ -8,6 +8,16 @@ from dashboard.incident_demo import (
     run_synthetic_defender_response,
     run_synthetic_incident_pipeline,
 )
+from dashboard.presentation import (
+    CORRELATION_COVERAGE,
+    DETECTION_COVERAGE,
+    build_attack_chain,
+    build_incident_summary,
+    build_pipeline_status,
+    defender_state,
+    diagnostics_visible,
+    explain_correlation,
+)
 from data_generation.scenario_lab import list_scenarios
 from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, check_ollama_health
 from database.database import (
@@ -118,9 +128,17 @@ for state_key, default_value in {
     "live_checkpoint_reset_result": None,
     "scenario_lab_seed": 20260721,
     "scenario_lab_reveal_answer": False,
+    "presentation_mode": True,
 }.items():
     if state_key not in st.session_state:
         st.session_state[state_key] = default_value
+
+presentation_mode = st.toggle(
+    "Presentation Mode",
+    value=bool(st.session_state["presentation_mode"]),
+    key="presentation_mode",
+    help="Keeps the dashboard focused on the demo storyline while preserving diagnostics when fallback occurs.",
+)
 
 recent_event_limit = st.number_input(
     "Number of recent stored events to load",
@@ -157,7 +175,7 @@ if "stored_security_events" in st.session_state:
         st.subheader("Recent Stored Events")
         st.dataframe(
             stored_events,
-            use_container_width=True,
+            width="stretch",
         )
 
     else:
@@ -312,7 +330,7 @@ def show_checkpoint_reset_result() -> None:
                 "error",
             ]
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -349,7 +367,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
                 st.info(message)
         st.dataframe(
             new_alerts,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -405,7 +423,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
         st.subheader("Automatic Monitoring Setup")
         st.dataframe(
             setup_status,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -416,7 +434,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
         st.subheader("Channel Checkpoints")
         st.dataframe(
             channel_status,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -427,7 +445,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
     else:
         st.dataframe(
             raw_live_events.tail(100),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -441,7 +459,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
     else:
         st.dataframe(
             normalized_live_events,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -452,7 +470,7 @@ def show_live_result(live_result: dict[str, object] | None) -> None:
     else:
         st.dataframe(
             live_alerts,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -728,6 +746,15 @@ if synthetic_result is not None:
     )
     summary_columns[3].metric("Incident Confidence", incident_confidence)
     summary_columns[4].metric("Analyst Confidence", analyst_confidence)
+    pipeline_result_for_status = dict(synthetic_result)
+    pipeline_result_for_status["synthetic_defender_response"] = st.session_state[
+        "synthetic_defender_response"
+    ]
+    st.dataframe(
+        pd.DataFrame(build_pipeline_status(pipeline_result_for_status)),
+        width="stretch",
+        hide_index=True,
+    )
     scenario_display_name = (
         "Unknown Synthetic Incident"
         if scenario.get("ScenarioID") and st.session_state.get("scenario_lab_mode") == "Random Scenario" and not st.session_state.get("scenario_lab_reveal_answer")
@@ -756,6 +783,20 @@ if synthetic_result is not None:
                 "Actual MITRE Techniques": incident_record.get("MITRETechniques", []),
             }
         )
+
+    st.subheader("Incident Summary")
+    incident_summary = build_incident_summary(
+        incident_record,
+        analyst_analysis,
+        analyst_metadata,
+    )
+    st.dataframe(
+        pd.DataFrame(
+            [{"Field": field, "Value": value} for field, value in incident_summary.items()]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
 
     with st.expander("1. Synthetic Security Events", expanded=False):
         event_columns = [
@@ -835,15 +876,37 @@ if synthetic_result is not None:
         "First Seen": incident_record.get("FirstSeen", "N/A"),
         "Last Seen": incident_record.get("LastSeen", "N/A"),
     }
-    st.json(incident_details)
+    if presentation_mode:
+        st.dataframe(
+            pd.DataFrame(
+                [{"Field": field, "Value": value} for field, value in incident_details.items()]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+    else:
+        st.json(incident_details)
     st.markdown("**Attack Stages**")
     st.write(incident_record.get("AttackStages", []))
     st.markdown("**MITRE Techniques**")
     st.write(incident_record.get("MITRETechniques", []))
     st.markdown("**Classification Reason**")
     st.write(incident_record.get("ClassificationReason", "Not provided."))
+    correlation_reasons = explain_correlation(incident_record)
+    if correlation_reasons:
+        st.markdown("**Why these alerts correlated**")
+        for reason in correlation_reasons:
+            st.markdown(f"- {reason}")
 
     st.subheader("4. Incident Timeline")
+    attack_chain = build_attack_chain(incident_timeline)
+    if attack_chain:
+        st.markdown("**Attack Chain View**")
+        st.dataframe(
+            pd.DataFrame(attack_chain),
+            width="stretch",
+            hide_index=True,
+        )
     if formatted_timeline:
         for timeline_entry in formatted_timeline:
             st.markdown(f"- {timeline_entry}")
@@ -940,15 +1003,21 @@ if synthetic_result is not None:
         st.markdown("**ValidationErrors**")
         st.json(validation_errors)
 
-    with st.expander("Hybrid Analyst Diagnostics", expanded=False):
-        if analyst_metadata.get("UsedFallback"):
-            raw_model_output = analyst_metadata.get("RawModelOutput")
-            if raw_model_output:
-                st.code(str(raw_model_output)[:5000])
+    if diagnostics_visible(
+        presentation_mode,
+        bool(analyst_metadata.get("UsedFallback")),
+    ):
+        with st.expander("Hybrid Analyst Diagnostics", expanded=False):
+            if analyst_metadata.get("UsedFallback"):
+                raw_model_output = analyst_metadata.get("RawModelOutput")
+                if raw_model_output and not presentation_mode:
+                    st.code(str(raw_model_output)[:5000])
+                elif raw_model_output:
+                    st.info("Raw model output is hidden in Presentation Mode.")
+                else:
+                    st.info("No local model output was captured for this fallback.")
             else:
-                st.info("No local model output was captured for this fallback.")
-        else:
-            st.info("No Hybrid Analyst fallback occurred.")
+                st.info("No Hybrid Analyst fallback occurred.")
     st.caption(mode_captions.get(str(analyst_metadata.get("AnalystMode", "deterministic")), mode_captions["deterministic"]))
 
     st.subheader("6. Defender Action Center")
@@ -961,12 +1030,19 @@ if synthetic_result is not None:
         analyst_analysis.get("RequiresApproval", False)
     )
 
-    action_columns = st.columns(3)
+    action_columns = st.columns(4)
     action_columns[0].metric("Recommended Action", recommended_action)
     action_columns[1].metric("Target", action_target)
     action_columns[2].metric(
         "Requires Approval",
         "Yes" if requires_approval else "No",
+    )
+    action_columns[3].metric(
+        "Execution Mode",
+        "Simulation Only",
+    )
+    st.warning(
+        "Simulation-only response center: RAVEN-SOC records the decision but does not modify endpoints, accounts, network rules, or processes."
     )
 
     approve_column, reject_column = st.columns(2)
@@ -1022,6 +1098,14 @@ if synthetic_result is not None:
         }
 
     defender_response = st.session_state["synthetic_defender_response"]
+    st.metric(
+        "Defender State",
+        defender_state(
+            defender_response,
+            requires_approval,
+            bool(st.session_state["synthetic_action_rejected"]),
+        ),
+    )
     if defender_response is not None:
         st.subheader("Defender Decision")
 
@@ -1031,6 +1115,9 @@ if synthetic_result is not None:
                     "SimulationMessage",
                     "The simulated action was completed.",
                 )
+            )
+            st.success(
+                "Simulation recorded. No real endpoint, account, network rule, or process was modified."
             )
         elif (
             defender_response.get("RequiresApproval")
@@ -1062,15 +1149,73 @@ if synthetic_result is not None:
             "DecisionReason",
             "SimulationMessage",
         ]
-        st.json(
-            {
-                field: defender_response.get(field)
-                for field in defender_fields
-            }
-        )
+        defender_display = {
+            field: defender_response.get(field)
+            for field in defender_fields
+        }
+        if presentation_mode:
+            st.dataframe(
+                pd.DataFrame(
+                    [{"Field": field, "Value": value} for field, value in defender_display.items()]
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+        else:
+            st.json(defender_display)
 
         with st.expander("Response Audit Record"):
             st.json(defender_response.get("AuditRecord", {}))
+
+st.divider()
+st.header("Detection Coverage")
+st.caption(
+    "Implemented deterministic detections and correlation patterns used by the synthetic lab and incident pipeline."
+)
+
+detection_coverage_rows = [
+    {
+        "Rule ID": rule_id,
+        "Detection": name,
+        "MITRE Technique": mitre,
+        "Telemetry": telemetry,
+        "Default Action": action,
+        "Requires Approval": "Yes" if requires_approval else "No",
+        "Status": "Implemented",
+    }
+    for rule_id, name, mitre, telemetry, action, requires_approval in DETECTION_COVERAGE
+]
+correlation_coverage_rows = [
+    {
+        "Pattern ID": pattern_id,
+        "Pattern": name,
+        "MITRE Techniques": mitre,
+        "Inputs": inputs,
+        "Default Action": action,
+        "Requires Approval": "Yes" if requires_approval else "No",
+        "Status": "Implemented",
+    }
+    for pattern_id, name, mitre, inputs, action, requires_approval in CORRELATION_COVERAGE
+]
+
+coverage_tabs = st.tabs(["Detection rules", "Correlation patterns"])
+with coverage_tabs[0]:
+    st.dataframe(
+        pd.DataFrame(detection_coverage_rows),
+        width="stretch",
+        hide_index=True,
+    )
+with coverage_tabs[1]:
+    st.dataframe(
+        pd.DataFrame(correlation_coverage_rows),
+        width="stretch",
+        hide_index=True,
+    )
+
+st.subheader("About RAVEN-SOC")
+st.info(
+    "RAVEN-SOC is a local demo SOC pipeline: ingest or generate security telemetry, detect alerts, correlate incidents, classify with a strict Analyst contract, and produce simulation-only Defender recommendations."
+)
 
 st.divider()
 

