@@ -1,0 +1,11 @@
+/* Component-specific overrides kept intentionally small for Phase 10A. */
+.panel-title {
+  margin-bottom: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.panel-head .panel-title {
+  margin-bottom: 0;
+}

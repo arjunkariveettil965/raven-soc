@@ -9,3 +9,8 @@ database/raven_soc_api.db
 database/raven_soc_api.db-*
 database/*.db-shm
 database/*.db-wal
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/npm-debug.log*

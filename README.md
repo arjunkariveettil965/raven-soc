@@ -26,6 +26,27 @@ python -m streamlit run app.py
 
 The default local Ollama model is `gemma3:4b-it-qat`. The dashboard model input remains editable, so another local model can be supplied for testing.
 
+## Frontend
+
+Phase 10A adds a local React + Vite frontend for the FastAPI backend. Streamlit remains available and unchanged.
+
+Install and run the frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Local URLs:
+
+- Frontend: `http://127.0.0.1:5173`
+- API: `http://127.0.0.1:8000`
+
+Configure the frontend API base URL with `VITE_API_BASE_URL` in `frontend/.env.local` if needed. The example file is [`frontend/.env.example`](frontend/.env.example).
+
+This frontend is for local development and demonstrations. It does not add authentication and it does not execute real containment actions.
+
 ## Backend API
 
 Phase 9B adds a FastAPI layer around the existing modular monolith and shares the same neutral scenario orchestration used by Streamlit. It does not replace Streamlit and is not production-ready yet.

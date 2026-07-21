@@ -2,17 +2,13 @@
 
 ```mermaid
 flowchart TD
+    R[React / Vite frontend] -->|HTTP JSON| A[FastAPI backend]
     S[Streamlit dashboard] --> C[Core scenario pipeline]
-    A[FastAPI backend] --> C
-    C --> D[Detection rules]
-    D --> E[Incident correlation]
-    E --> F[Analyst baseline and Hybrid adapter]
-    F --> G[Strict Analyst validator]
-    G --> H[Deterministic Defender policy]
-    H --> I[Human approval gate]
-    I --> J[Simulation-only audit record]
-    S --> K[Streamlit event database raven_soc.db]
-    A --> L[API database raven_soc_api.db]
+    A --> C
+    C --> D[Detection / Correlation / Analyst / Defender]
+    D --> E[SQLite API persistence]
+    S --> F[Streamlit DB raven_soc.db]
+    A --> G[API DB raven_soc_api.db]
 ```
 
 ## Security Contracts
@@ -58,6 +54,8 @@ Hybrid Analyst mode fails closed. If Ollama is unavailable, the model returns ma
 The Streamlit dashboard stores interaction state in `st.session_state`. Live ingestion uses checkpoints so monitoring can resume from the intended Windows Event Log position. The Streamlit SQLite database stores ingested events for dashboard exploration.
 
 The FastAPI backend uses a separate SQLite database, `database/raven_soc_api.db`, for API-created scenario runs, incidents, Analyst results, and simulated action decisions. The databases are separate in Phase 9B so backend persistence can evolve without migrating or mutating the existing Streamlit runtime event store.
+
+The React/Vite frontend talks to FastAPI over JSON only. It does not access either database directly.
 
 ## Defender Boundary
 
