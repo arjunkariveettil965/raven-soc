@@ -1,8 +1,10 @@
 from unittest.mock import patch
+from pathlib import Path
 
 import pandas as pd
 
 from ai_analyst.agent import get_last_analyst_metadata, run_analyst_agent
+from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL
 from ai_analyst.output_validator import validate_analyst_output
 from dashboard.incident_demo import (
     run_synthetic_defender_response,
@@ -16,7 +18,7 @@ def _mock_ollama_health():
         return_value={
             "available": True,
             "base_url": "http://localhost:11434",
-            "models": ["gemma3:1b"],
+            "models": [DEFAULT_OLLAMA_MODEL],
             "error": None,
         },
     )
@@ -236,6 +238,32 @@ def test_hybrid_valid_ollama_output_uses_model_explanation():
     assert analysis["RecommendedActionID"] == deterministic["RecommendedActionID"]
     assert metadata["UsedFallback"] is False
     assert metadata["FallbackReason"] is None
+
+
+def test_hybrid_custom_model_name_is_preserved_in_metadata():
+    incident, timeline = _fixed_incident_and_timeline()
+    deterministic = run_analyst_agent(incident, timeline, environment_name="SME Office")
+    valid_model_analysis = _valid_model_analysis_from(deterministic)
+
+    with patch("ai_analyst.agent.generate_structured_analysis", return_value=valid_model_analysis) as generate_mock:
+        run_analyst_agent(
+            incident,
+            timeline,
+            environment_name="SME Office",
+            mode="hybrid",
+            ollama_model="custom-local-model:latest",
+        )
+    metadata = get_last_analyst_metadata()
+
+    assert metadata["ModelName"] == "custom-local-model:latest"
+    assert generate_mock.call_args.kwargs["model"] == "custom-local-model:latest"
+
+
+def test_app_uses_default_ollama_model_constant_for_editable_input():
+    app_source = Path("app.py").read_text(encoding="utf-8")
+
+    assert "value=DEFAULT_OLLAMA_MODEL" in app_source
+    assert 'value="gemma3:' not in app_source
 
 
 def test_hybrid_normalizes_harmless_local_slm_variations():

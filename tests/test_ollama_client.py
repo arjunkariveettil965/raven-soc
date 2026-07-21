@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_analyst.ollama_client import check_ollama_health, generate_structured_analysis
+from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, check_ollama_health, generate_structured_analysis
 
 
 class MockResponse:
@@ -22,16 +22,20 @@ class MockResponse:
 
 
 def test_health_check_returns_available_and_models():
-    payload = {"models": [{"name": "gemma3:1b"}, {"name": "llama3.2:1b"}]}
+    payload = {"models": [{"name": DEFAULT_OLLAMA_MODEL}, {"name": "llama3.2:1b"}]}
     with patch("urllib.request.urlopen", return_value=MockResponse(payload)):
         health = check_ollama_health()
 
     assert health == {
         "available": True,
         "base_url": "http://localhost:11434",
-        "models": ["gemma3:1b", "llama3.2:1b"],
+        "models": [DEFAULT_OLLAMA_MODEL, "llama3.2:1b"],
         "error": None,
     }
+
+
+def test_default_model_is_gemma_4b_it_qat():
+    assert DEFAULT_OLLAMA_MODEL == "gemma3:4b-it-qat"
 
 
 def test_health_check_handles_connection_failure():
@@ -51,6 +55,26 @@ def test_structured_analysis_parses_valid_json():
         result = generate_structured_analysis("prompt", {"type": "object"})
 
     assert result == analysis
+
+
+def test_structured_analysis_uses_custom_model_when_supplied():
+    analysis = {"Status": "benign"}
+    payload = {"message": {"content": json.dumps(analysis)}}
+    captured = {}
+
+    def capture_request(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return MockResponse(payload)
+
+    with patch("urllib.request.urlopen", side_effect=capture_request):
+        result = generate_structured_analysis(
+            "prompt",
+            {"type": "object"},
+            model="custom-local-model:latest",
+        )
+
+    assert result == analysis
+    assert captured["payload"]["model"] == "custom-local-model:latest"
 
 
 def test_structured_analysis_parses_markdown_fenced_json():

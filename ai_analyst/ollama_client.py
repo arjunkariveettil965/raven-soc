@@ -7,7 +7,7 @@ import urllib.request
 from typing import Any
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
-DEFAULT_OLLAMA_MODEL = "gemma3:1b"
+DEFAULT_OLLAMA_MODEL = "gemma3:4b-it-qat"
 
 
 def _join_url(base_url: str, path: str) -> str:
