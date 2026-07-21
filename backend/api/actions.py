@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.dependencies import get_incident_repository
 from backend.repositories import IncidentRepository
 from backend.schemas.actions import ActionDecisionResponse
-from backend.services.action_service import ActionConflictError, approve_action, reject_action
+from backend.services.action_service import ActionConflictError, approve_action, get_action_decision, reject_action
 
 
 logger = logging.getLogger(__name__)
@@ -41,4 +41,15 @@ def reject_incident_action(
     if result is None:
         raise HTTPException(status_code=404, detail="Incident not found.")
     logger.info("Simulated action rejected: incident_id=%s action_id=%s", incident_id, result.get("ActionID"))
+    return result
+
+
+@router.get("/{incident_id}", response_model=ActionDecisionResponse)
+def retrieve_action_decision(
+    incident_id: str,
+    repository: IncidentRepository = Depends(get_incident_repository),
+) -> dict[str, object]:
+    result = get_action_decision(repository, incident_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Action decision not found.")
     return result

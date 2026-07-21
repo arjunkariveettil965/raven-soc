@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ai_analyst.schemas import ALLOWED_ACTION_IDS
-from backend.repositories import IncidentRepository
+from backend.repositories import IncidentRepository, RepositoryConflictError
 from response.defender_agent import run_defender_agent
 
 
@@ -35,10 +35,11 @@ def approve_action(repository: IncidentRepository, incident_id: str) -> dict[str
     stored = repository.get_incident(incident_id)
     if stored is None:
         return None
-    if stored.action_decision is not None:
-        if stored.action_decision.get("Decision") != "approved":
+    existing = repository.get_action_decision(incident_id)
+    if existing is not None:
+        if existing.get("Decision") != "approved":
             raise ActionConflictError("Incident already has a conflicting action decision.")
-        return stored.action_decision
+        return existing
 
     action_id = str(stored.analysis.get("RecommendedActionID", "NO_ACTION"))
     if action_id not in ALLOWED_ACTION_IDS:
@@ -55,18 +56,21 @@ def approve_action(repository: IncidentRepository, incident_id: str) -> dict[str
         target=str(defender_result.get("Target", stored.analysis.get("Target", ""))),
         decision="approved",
     )
-    repository.record_action_decision(incident_id, payload)
-    return payload
+    try:
+        return repository.save_action_decision(incident_id, payload)
+    except RepositoryConflictError as error:
+        raise ActionConflictError(str(error)) from error
 
 
 def reject_action(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
     stored = repository.get_incident(incident_id)
     if stored is None:
         return None
-    if stored.action_decision is not None:
-        if stored.action_decision.get("Decision") != "rejected":
+    existing = repository.get_action_decision(incident_id)
+    if existing is not None:
+        if existing.get("Decision") != "rejected":
             raise ActionConflictError("Incident already has a conflicting action decision.")
-        return stored.action_decision
+        return existing
 
     action_id = str(stored.analysis.get("RecommendedActionID", "NO_ACTION"))
     target = str(stored.analysis.get("Target", ""))
@@ -76,5 +80,13 @@ def reject_action(repository: IncidentRepository, incident_id: str) -> dict[str,
         target=target,
         decision="rejected",
     )
-    repository.record_action_decision(incident_id, payload)
-    return payload
+    try:
+        return repository.save_action_decision(incident_id, payload)
+    except RepositoryConflictError as error:
+        raise ActionConflictError(str(error)) from error
+
+
+def get_action_decision(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
+    if repository.get_incident(incident_id) is None:
+        return None
+    return repository.get_action_decision(incident_id)

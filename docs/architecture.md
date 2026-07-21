@@ -2,18 +2,17 @@
 
 ```mermaid
 flowchart TD
-    A[CSV upload, live Windows logs, or synthetic lab] --> B[Normalization]
-    B --> C[Deterministic detection rules]
-    C --> D[Incident correlation]
-    D --> E[Deterministic incident baseline]
-    E --> F[Hybrid Analyst prompt context]
-    F --> G[Local Ollama model]
-    G --> H[Tolerant response adapter]
-    H --> I[Strict Analyst validator]
-    E --> I
-    I --> J[Deterministic Defender policy]
-    J --> K[Human approval gate]
-    K --> L[Simulation-only audit record]
+    S[Streamlit dashboard] --> C[Core scenario pipeline]
+    A[FastAPI backend] --> C
+    C --> D[Detection rules]
+    D --> E[Incident correlation]
+    E --> F[Analyst baseline and Hybrid adapter]
+    F --> G[Strict Analyst validator]
+    G --> H[Deterministic Defender policy]
+    H --> I[Human approval gate]
+    I --> J[Simulation-only audit record]
+    S --> K[Streamlit event database raven_soc.db]
+    A --> L[API database raven_soc_api.db]
 ```
 
 ## Security Contracts
@@ -56,7 +55,9 @@ Hybrid Analyst mode fails closed. If Ollama is unavailable, the model returns ma
 
 ## State and Storage
 
-The Streamlit dashboard stores interaction state in `st.session_state`. Live ingestion uses checkpoints so monitoring can resume from the intended Windows Event Log position. The local SQLite database stores ingested events for dashboard exploration.
+The Streamlit dashboard stores interaction state in `st.session_state`. Live ingestion uses checkpoints so monitoring can resume from the intended Windows Event Log position. The Streamlit SQLite database stores ingested events for dashboard exploration.
+
+The FastAPI backend uses a separate SQLite database, `database/raven_soc_api.db`, for API-created scenario runs, incidents, Analyst results, and simulated action decisions. The databases are separate in Phase 9B so backend persistence can evolve without migrating or mutating the existing Streamlit runtime event store.
 
 ## Defender Boundary
 

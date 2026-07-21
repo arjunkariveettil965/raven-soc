@@ -1,3 +1,24 @@
-from backend.repositories.incident_repository import IncidentRepository
+from backend.repositories.base import (
+    IncidentRepository as RepositoryProtocol,
+    RepositoryConflictError,
+    RepositoryError,
+    RepositoryUnavailableError,
+    StoredIncident,
+    StoredRun,
+)
+from backend.repositories.memory_repository import MemoryIncidentRepository
+from backend.repositories.sqlite_repository import SQLiteIncidentRepository
 
-__all__ = ["IncidentRepository"]
+IncidentRepository = MemoryIncidentRepository
+
+__all__ = [
+    "IncidentRepository",
+    "RepositoryProtocol",
+    "MemoryIncidentRepository",
+    "RepositoryConflictError",
+    "RepositoryError",
+    "RepositoryUnavailableError",
+    "SQLiteIncidentRepository",
+    "StoredIncident",
+    "StoredRun",
+]

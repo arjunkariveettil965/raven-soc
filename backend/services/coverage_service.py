@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dashboard.presentation import CORRELATION_COVERAGE, DETECTION_COVERAGE
+from core.coverage import CORRELATION_COVERAGE, DETECTION_COVERAGE
 
 
 def get_coverage() -> dict[str, list[dict[str, object]]]:

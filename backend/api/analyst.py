@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.dependencies import get_incident_repository
 from backend.repositories import IncidentRepository
 from backend.schemas.analyst import AnalyzeIncidentRequest, AnalyzeIncidentResponse
-from backend.services.analyst_service import analyze_incident
+from backend.services.analyst_service import analyze_incident, get_latest_analysis
 
 
 router = APIRouter(prefix="/incidents", tags=["analyst"])
@@ -31,3 +31,14 @@ def analyze_stored_incident(
         "AnalystResult": analysis,
         "AnalystMetadata": metadata,
     }
+
+
+@router.get("/{incident_id}/analysis")
+def retrieve_latest_analysis(
+    incident_id: str,
+    repository: IncidentRepository = Depends(get_incident_repository),
+) -> dict[str, object]:
+    result = get_latest_analysis(repository, incident_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    return result

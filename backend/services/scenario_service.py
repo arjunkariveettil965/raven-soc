@@ -6,10 +6,10 @@ from uuid import uuid4
 import pandas as pd
 
 from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL
-from backend.repositories.incident_repository import IncidentRepository, StoredIncident
+from backend.repositories import IncidentRepository, StoredIncident
 from backend.schemas.common import serialize_api_value
 from backend.schemas.scenarios import ScenarioMode, ScenarioRunRequest
-from dashboard.incident_demo import run_synthetic_defender_response, run_synthetic_incident_pipeline
+from core.scenario_pipeline import run_synthetic_defender_response, run_synthetic_incident_pipeline
 from data_generation.scenario_lab import DIFFICULTIES, NOISE_LEVELS, list_scenarios
 
 
@@ -91,6 +91,7 @@ def run_scenario(request: ScenarioRunRequest, repository: IncidentRepository) ->
     api_response = {
         "RunID": run_id,
         "ScenarioLabel": _scenario_label(scenario, random_hidden),
+        "ScenarioMode": request.scenario_mode.value,
         "Seed": scenario.get("Seed", request.seed),
         "Difficulty": scenario.get("Difficulty", request.difficulty.value),
         "NoiseLevel": request.noise_level.value,
@@ -117,10 +118,10 @@ def run_scenario(request: ScenarioRunRequest, repository: IncidentRepository) ->
             analyst_metadata=analyst_metadata,
             environment_profile=serialize_api_value(result.get("environment_profile", {})),  # type: ignore[arg-type]
         )
-        repository.store_run(run_id, api_response, [stored])
+        repository.save_run(run_id, api_response, [stored])
         logger.info("Incident created: incident_id=%s run_id=%s", incident_id, run_id)
     else:
-        repository.store_run(run_id, api_response, [])
+        repository.save_run(run_id, api_response, [])
 
     if request.scenario_mode is ScenarioMode.random and request.reveal_answer:
         logger.info("Random scenario revealed: %s", scenario.get("ScenarioName", "Synthetic Scenario"))

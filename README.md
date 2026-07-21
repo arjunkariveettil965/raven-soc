@@ -28,7 +28,7 @@ The default local Ollama model is `gemma3:4b-it-qat`. The dashboard model input 
 
 ## Backend API
 
-Phase 9A adds an initial FastAPI layer around the existing modular monolith. It does not replace Streamlit and is not production-ready yet.
+Phase 9B adds a FastAPI layer around the existing modular monolith and shares the same neutral scenario orchestration used by Streamlit. It does not replace Streamlit and is not production-ready yet.
 
 Start the API locally:
 
@@ -42,8 +42,27 @@ Useful endpoints:
 - Swagger: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 - Health: `http://127.0.0.1:8000/api/v1/health`
+- Run history: `http://127.0.0.1:8000/api/v1/runs`
+- Latest incident analysis: `http://127.0.0.1:8000/api/v1/incidents/{incident_id}/analysis`
+- Action decision status: `http://127.0.0.1:8000/api/v1/actions/{incident_id}`
 
-The API currently stores scenario-run incidents in process memory. API-created incidents are available until the backend process restarts.
+API scenario runs, incidents, analyses, Defender recommendations, and simulated action decisions are persisted in a separate SQLite database. By default this is `database/raven_soc_api.db`, deliberately separate from Streamlit's `database/raven_soc.db`.
+
+Configuration:
+
+- `RAVEN_API_DB_PATH`: override the API SQLite database path.
+- `RAVEN_API_ALLOWED_ORIGINS`: comma-separated local frontend origins. Defaults to local React/Next.js/Vite origins on ports `3000` and `5173`.
+- `RAVEN_API_ENV`: environment label, default `development`.
+
+CORS is restricted to explicit local-development origins; wildcard origins are not enabled. Authentication is not implemented yet.
+
+To reset the API development database, stop the API process and delete only:
+
+```powershell
+Remove-Item database\raven_soc_api.db, database\raven_soc_api.db-* -ErrorAction SilentlyContinue
+```
+
+Do not delete `database\raven_soc.db` unless you intend to reset Streamlit-ingested event data.
 
 ## Analyst Modes
 

@@ -44,7 +44,15 @@ def analyze_incident(
 
     stored.analysis = dict(analysis)
     stored.analyst_metadata = _safe_metadata(metadata)
+    repository.save_analysis(incident_id, stored.analysis, stored.analyst_metadata)
     return (
         serialize_api_value(analysis),  # type: ignore[arg-type,return-value]
         stored.analyst_metadata,
     )
+
+
+def get_latest_analysis(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
+    if repository.get_incident(incident_id) is None:
+        return None
+    latest = repository.get_latest_analysis(incident_id)
+    return serialize_api_value(latest) if latest is not None else None  # type: ignore[return-value]

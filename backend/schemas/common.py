@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
+import math
 from typing import Any
 
 import pandas as pd
@@ -26,6 +27,8 @@ def _serialize_scalar(value: object) -> object:
         return value.isoformat()
     if isinstance(value, (datetime, date)):
         return value.isoformat()
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
     try:
         if pd.isna(value):
             return None
@@ -33,7 +36,7 @@ def _serialize_scalar(value: object) -> object:
         pass
     if hasattr(value, "item"):
         try:
-            return value.item()
+            return _serialize_scalar(value.item())
         except (TypeError, ValueError):
             pass
     return value
