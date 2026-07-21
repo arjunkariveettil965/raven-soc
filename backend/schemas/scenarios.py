@@ -49,6 +49,7 @@ class ScenarioRunRequest(StrictBaseModel):
     def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
+
         stripped = value.strip()
         return stripped or None
 
@@ -56,6 +57,7 @@ class ScenarioRunRequest(StrictBaseModel):
 class ScenarioRunResponse(StrictBaseModel):
     RunID: str
     ScenarioLabel: str
+    ScenarioMode: str
     Seed: int | None
     Difficulty: str
     NoiseLevel: str
