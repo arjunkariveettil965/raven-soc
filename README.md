@@ -26,6 +26,25 @@ python -m streamlit run app.py
 
 The default local Ollama model is `gemma3:4b-it-qat`. The dashboard model input remains editable, so another local model can be supplied for testing.
 
+## Backend API
+
+Phase 9A adds an initial FastAPI layer around the existing modular monolith. It does not replace Streamlit and is not production-ready yet.
+
+Start the API locally:
+
+```powershell
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Useful endpoints:
+
+- API root: `http://127.0.0.1:8000/`
+- Swagger: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- Health: `http://127.0.0.1:8000/api/v1/health`
+
+The API currently stores scenario-run incidents in process memory. API-created incidents are available until the backend process restarts.
+
 ## Analyst Modes
 
 - `deterministic`: uses the deterministic incident baseline only.

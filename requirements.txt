@@ -1,4 +1,8 @@
 streamlit>=1.37.0
+fastapi
+uvicorn
+httpx
+pydantic
 pandas
 plotly
 pytest
