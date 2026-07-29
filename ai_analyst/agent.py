@@ -285,7 +285,7 @@ def run_analyst_agent(
     if used_fallback:
         _print_fallback_diagnostic(fallback_reason)
     _set_last_analyst_metadata(
-        "hybrid",
+        "ollama",
         ollama_model,
         used_fallback,
         fallback_reason,

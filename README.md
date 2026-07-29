@@ -54,6 +54,11 @@ Configuration:
 - `RAVEN_API_DB_PATH`: override the API SQLite database path.
 - `RAVEN_API_ALLOWED_ORIGINS`: comma-separated local frontend origins. Defaults to local React/Next.js/Vite origins on ports `3000` and `5173`.
 - `RAVEN_API_ENV`: environment label, default `development`.
+- `RAVEN_API_REPOSITORY`: repository backend, default `sqlite`.
+
+Frontend configuration:
+
+- `VITE_API_URL`: API base URL used by the Vite app. Defaults to `http://localhost:8000/api/v1`.
 
 CORS is restricted to explicit local-development origins; wildcard origins are not enabled. Authentication is not implemented yet.
 
@@ -110,9 +115,10 @@ Do not delete `database\raven_soc.db` unless you intend to reset Streamlit-inges
 
 ## Analyst Modes
 
-- `deterministic`: uses the deterministic incident baseline only.
-- `hybrid`: gives the local model trusted incident context and asks for model-owned decision fields.
-- `local`: attempts local model analysis directly through Ollama.
+- `Deterministic`: uses the deterministic incident baseline only.
+- `Hybrid`: sends the strict incident context to the local Ollama-backed analyst path and falls back deterministically when needed.
+
+When Hybrid succeeds, the API metadata reports `AnalystMode: ollama` and the configured model name. When it falls back, `UsedFallback` is set to `true` and the deterministic baseline is returned.
 
 Hybrid mode preserves strict boundaries:
 
@@ -121,6 +127,10 @@ Hybrid mode preserves strict boundaries:
 - Safety-merged field: `RequiresApproval`.
 
 If the model output cannot be normalized and validated, RAVEN-SOC falls back to the deterministic baseline and reports the fallback reason in diagnostics.
+
+## Azure Deployment
+
+See the full deployment notes in [docs/azure_deployment.md](docs/azure_deployment.md).
 
 ## Safety
 

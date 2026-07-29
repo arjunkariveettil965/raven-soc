@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ApiService } from "./services/api";
-import type { HealthStatus, LiveStatus, SecurityEvent, SecurityAlert, Incident } from "./services/api";
+import type { AnalystMetadata, HealthStatus, LiveStatus, SecurityEvent, SecurityAlert, Incident } from "./services/api";
 import "./App.css";
 
 
@@ -18,6 +18,7 @@ function App() {
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [aiReport, setAiReport] = useState<any | null>(null);
+  const [analystMetadata, setAnalystMetadata] = useState<AnalystMetadata | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -124,6 +125,7 @@ function App() {
         const details = await ApiService.getIncident(selectedIncidentId);
         setSelectedIncident(details);
         setAiReport(null);
+        setAnalystMetadata(null);
         setActionMessage(null);
 
         // check if there's any existing analysis report
@@ -131,6 +133,7 @@ function App() {
           const analysis = await ApiService.getLatestAnalysis(selectedIncidentId);
           if (analysis && analysis.AnalystResult) {
             setAiReport(analysis.AnalystResult);
+            setAnalystMetadata(analysis.AnalystMetadata ?? null);
           }
         } catch (_) {
           // ignore
@@ -183,12 +186,14 @@ function App() {
   };
 
   // AI Analyst Trigger
-  const handleTriggerAI = async (mode: 'Deterministic' | 'Hybrid') => {
+  const handleTriggerAI = async () => {
     if (!selectedIncidentId) return;
     setIsAnalyzing(true);
     try {
+      const mode = health?.capabilities.hybrid_analyst ? 'Hybrid' : 'Deterministic';
       const res = await ApiService.analyzeIncident(selectedIncidentId, mode);
       setAiReport(res.AnalystResult);
+      setAnalystMetadata(res.AnalystMetadata ?? null);
     } catch (err) {
       alert("AI analysis execution failed");
     } finally {
@@ -656,7 +661,7 @@ function App() {
                             <div className="ai-controls">
                               <button 
                                 className="btn btn-sm btn-info"
-                                onClick={() => handleTriggerAI('Deterministic')}
+                                onClick={handleTriggerAI}
                                 disabled={isAnalyzing}
                               >
                                 {isAnalyzing ? "Analyzing..." : "Run AI Analysis"}
@@ -679,6 +684,37 @@ function App() {
                                   <>
                                     <h4>Business Impact</h4>
                                     <p>{aiReport.Impact}</p>
+                                  </>
+                                )}
+                                {analystMetadata && (
+                                  <>
+                                    <h4>Metadata</h4>
+                                    <div className="asset-details">
+                                      <div className="asset-stat-row">
+                                        <span>Analyst Mode:</span>
+                                        <strong>{analystMetadata.AnalystMode || "unknown"}</strong>
+                                      </div>
+                                      <div className="asset-stat-row">
+                                        <span>Model Name:</span>
+                                        <strong>{analystMetadata.ModelName || "unknown"}</strong>
+                                      </div>
+                                      <div className="asset-stat-row">
+                                        <span>Used Fallback:</span>
+                                        <strong>{analystMetadata.UsedFallback ? "Yes" : "No"}</strong>
+                                      </div>
+                                      {analystMetadata.FallbackReason && (
+                                        <div className="asset-stat-row">
+                                          <span>Fallback Reason:</span>
+                                          <strong>{analystMetadata.FallbackReason}</strong>
+                                        </div>
+                                      )}
+                                      {(analystMetadata.ValidationErrors?.length ?? 0) > 0 && (
+                                        <div className="asset-stat-row">
+                                          <span>Validation Errors:</span>
+                                          <strong>{analystMetadata.ValidationErrors?.join("; ")}</strong>
+                                        </div>
+                                      )}
+                                    </div>
                                   </>
                                 )}
                               </div>

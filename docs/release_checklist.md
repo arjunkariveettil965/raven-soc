@@ -12,6 +12,7 @@
 
 - [ ] Confirm default Ollama model is `gemma3:4b-it-qat`.
 - [ ] Confirm custom Ollama model names remain accepted.
+- [ ] Confirm the frontend sends `mode: Hybrid` when Ollama-backed analysis is available.
 - [ ] Confirm Hybrid fallback diagnostics are collapsed.
 - [ ] Confirm raw model output is limited to 5000 characters when displayed.
 
@@ -28,3 +29,10 @@
 - [ ] Run focused Analyst and demo tests.
 - [ ] Run the full pytest suite with a unique Windows temp directory.
 - [ ] Review `git status --short` before packaging or committing.
+
+## Deployment
+
+- [ ] Confirm the backend starts with `uvicorn backend.main:app --host 0.0.0.0 --port 8000`.
+- [ ] Confirm `VITE_API_URL` is set for the deployed frontend.
+- [ ] Confirm CORS origins are restricted to the deployed frontend host.
+- [ ] Confirm the API SQLite path is configurable and separate from the demo database.

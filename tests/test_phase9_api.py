@@ -186,6 +186,8 @@ def test_deterministic_and_hybrid_analysis_do_not_expose_raw_model_output(client
         f"/api/v1/incidents/{incident_id}/analyze",
         json={"mode": "Hybrid", "ollama_model": "custom-local"},
     ).json()
+    assert hybrid["AnalystMetadata"]["AnalystMode"] == "ollama"
+    assert hybrid["AnalystMetadata"]["ModelName"] == "custom-local"
     assert hybrid["AnalystMetadata"]["UsedFallback"] is False
     assert "RawModelOutput" not in hybrid["AnalystMetadata"]
 

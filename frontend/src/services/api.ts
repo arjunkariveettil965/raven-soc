@@ -49,6 +49,22 @@ export interface HealthStatus {
   };
 }
 
+export interface AnalystMetadata {
+  AnalystMode?: string;
+  ModelName?: string;
+  UsedFallback?: boolean;
+  FallbackReason?: string | null;
+  ValidationErrors?: string[];
+  NormalizationApplied?: boolean;
+  RawModelOutputAvailable?: boolean;
+}
+
+export interface AnalystAnalysisResponse {
+  IncidentID: string;
+  AnalystResult: Record<string, any>;
+  AnalystMetadata: AnalystMetadata;
+}
+
 export interface LiveStatus {
   status: string;
   scenario: string;
@@ -187,7 +203,7 @@ const mockHealth: HealthStatus = {
   service: "raven-soc-api (Mock)",
   version: "0.1.0",
   database: { available: true, path: "database/mock.db", event_count: 105 },
-  ollama: { configured_url: "http://localhost:11434", default_model: "llama3", checked: false },
+  ollama: { configured_url: "http://localhost:11434", default_model: "gemma3:4b-it-qat", checked: false },
   capabilities: { scenario_lab: true, detection: true, correlation: true, hybrid_analyst: true, simulated_defender: true }
 };
 
@@ -320,7 +336,7 @@ export const ApiService = {
     return normalizeIncident(data.Incident);
   },
 
-  async analyzeIncident(id: string, mode: 'Deterministic' | 'Hybrid' = 'Deterministic', model?: string): Promise<any> {
+  async analyzeIncident(id: string, mode: 'Deterministic' | 'Hybrid' = 'Hybrid', model?: string): Promise<any> {
     return safeFetch<any>(`${API_BASE_URL}/incidents/${id}/analyze`, {
       method: 'POST',
       body: JSON.stringify({ mode, ollama_model: model }),
@@ -334,17 +350,24 @@ export const ApiService = {
       },
       AnalystMetadata: {
         generated_at: new Date().toISOString(),
-        mode: mode
+        AnalystMode: mode === 'Hybrid' ? 'ollama' : 'deterministic',
+        ModelName: "gemma3:4b-it-qat",
+        UsedFallback: false
       }
     });
   },
 
-  async getLatestAnalysis(id: string): Promise<any> {
+  async getLatestAnalysis(id: string): Promise<AnalystAnalysisResponse> {
     return safeFetch<any>(`${API_BASE_URL}/incidents/${id}/analysis`, undefined, {
       IncidentID: id,
       AnalystResult: {
         Summary: "Mock Analyst Report: Identified credential theft via lsass.exe process dump.",
         RootCause: "Execution of suspected Mimikatz payload by compromised user Administrator."
+      },
+      AnalystMetadata: {
+        AnalystMode: "ollama",
+        ModelName: "gemma3:4b-it-qat",
+        UsedFallback: false
       }
     });
   },
