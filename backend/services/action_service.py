@@ -56,7 +56,40 @@ def approve_action(repository: IncidentRepository, incident_id: str) -> dict[str
         target=str(defender_result.get("Target", stored.analysis.get("Target", ""))),
         decision="approved",
     )
+
+    # 1. Update the incident payload & timeline events
+    current_time = datetime.now(UTC).isoformat()
+    new_event = {
+        "Timestamp": current_time,
+        "TimestampFormat": current_time,
+        "Event": f"Isolation Executed: Endpoint isolation simulated successfully for {payload.get('Target')}",
+        "action": "Isolation Executed",
+        "actor": "RAVEN Defender Agent",
+        "status": "success",
+        "message": f"Endpoint isolation simulated successfully for {payload.get('Target')}"
+    }
+
+    timeline = list(stored.timeline)
+    timeline.append(new_event)
+
+    incident_payload = dict(stored.incident)
+    incident_payload["State"] = "Mitigated"
+    incident_payload["ContainmentStatus"] = "Isolated"
+    incident_payload["HostStatus"] = "ISOLATED"
+
+    if "MachineOverview" in incident_payload:
+        incident_payload["MachineOverview"] = dict(incident_payload["MachineOverview"])
+        incident_payload["MachineOverview"]["ContainmentStatus"] = "Isolated"
+        incident_payload["MachineOverview"]["HostStatus"] = "ISOLATED"
+        incident_payload["MachineOverview"]["RiskScore"] = 0
+
+    if "DefenderRecommendation" in incident_payload:
+        incident_payload["DefenderRecommendation"] = dict(incident_payload["DefenderRecommendation"])
+        incident_payload["DefenderRecommendation"]["Status"] = "approved"
+        incident_payload["DefenderRecommendation"]["Message"] = "Isolation executed successfully."
+
     try:
+        repository.update_incident_payload_and_timeline(incident_id, incident_payload, timeline)
         return repository.save_action_decision(incident_id, payload)
     except RepositoryConflictError as error:
         raise ActionConflictError(str(error)) from error

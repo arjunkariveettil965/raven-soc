@@ -14,6 +14,7 @@ The project is designed for demos, learning, and safe experimentation with hybri
 - Randomized synthetic attack lab with expected-answer reveal.
 - Hybrid Analyst mode backed by Ollama, with deterministic fallback.
 - Simulation-only Defender action center.
+- Phase 10B isolated synthetic live monitoring engine with real-time API and Streamlit page.
 - Detection coverage and architecture documentation.
 
 ## Quick Start
@@ -55,6 +56,49 @@ Configuration:
 - `RAVEN_API_ENV`: environment label, default `development`.
 
 CORS is restricted to explicit local-development origins; wildcard origins are not enabled. Authentication is not implemented yet.
+
+## Phase 10B Live Monitoring Engine
+
+Phase 10B adds an isolated synthetic live monitoring engine for demo and judging flows. It does not require Windows Event Log access and does not modify the existing Streamlit event-ingestion workflow.
+
+How it works:
+
+- Generates synthetic events continuously from existing scenario generation logic.
+- Reuses the existing detection engine, alert correlation, incident classification, Analyst, and Defender recommendation flow.
+- Keeps state in memory (events, alerts, incidents, status, playback speed).
+- Exposes dedicated API endpoints under `/api/v1/live/*`:
+  - `GET /api/v1/live/status`
+  - `POST /api/v1/live/start`
+  - `POST /api/v1/live/pause`
+  - `POST /api/v1/live/resume`
+  - `POST /api/v1/live/reset`
+  - `GET /api/v1/live/events`
+  - `GET /api/v1/live/alerts`
+  - `GET /api/v1/live/incidents`
+
+Supported live demo scenarios:
+
+- Multi Stage Intrusion
+- Ransomware
+- Insider Threat
+- Credential Attack
+
+Playback speeds:
+
+- `0.5x`, `1x`, `2x`, `5x`, `10x`
+
+How judges use it:
+
+1. Open the Streamlit **Live Monitoring** page.
+2. Select a scenario and playback speed.
+3. Click **Start** and observe event, alert, incident, MITRE, and pipeline panels auto-refresh every second.
+4. Use **Pause**, **Resume**, and **Reset** controls to verify deterministic monitor behavior.
+
+Why this is isolated:
+
+- It uses synthetic records only and never reads or requires real host telemetry.
+- It runs independently of `database/raven_soc.db` and does not perform real containment actions.
+- Analyst metadata is sanitized; raw model output is not exposed.
 
 To reset the API development database, stop the API process and delete only:
 

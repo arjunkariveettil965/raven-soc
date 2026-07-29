@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import actions, analyst, coverage, health, incidents, runs, scenarios
+from backend.api import actions, analyst, coverage, health, incidents, live, runs, scenarios
 from backend.dependencies import incident_repository
 from backend.settings import settings
 
@@ -70,3 +70,4 @@ app.include_router(runs.router, prefix=api_prefix)
 app.include_router(incidents.router, prefix=api_prefix)
 app.include_router(analyst.router, prefix=api_prefix)
 app.include_router(actions.router, prefix=api_prefix)
+app.include_router(live.router, prefix=api_prefix)

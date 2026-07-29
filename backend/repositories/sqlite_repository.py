@@ -365,6 +365,17 @@ class SQLiteIncidentRepository:
             "Timestamp": str(row["created_at"]),
         }
 
+    def update_incident_payload_and_timeline(self, incident_id: str, incident: dict[str, Any], timeline: list[dict[str, Any]]) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE api_incidents
+                SET incident_payload_json = ?, timeline_json = ?, updated_at = ?
+                WHERE incident_id = ?
+                """,
+                (_json_dump(incident), _json_dump(timeline), _now(), incident_id)
+            )
+
     def clear_for_tests(self) -> None:
         with self._connect() as connection:
             connection.execute("DELETE FROM api_action_decisions")

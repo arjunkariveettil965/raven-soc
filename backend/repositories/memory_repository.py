@@ -81,6 +81,13 @@ class MemoryIncidentRepository:
             incident = self._incidents.get(incident_id)
             return None if incident is None else incident.action_decision
 
+    def update_incident_payload_and_timeline(self, incident_id: str, incident: dict[str, Any], timeline: list[dict[str, Any]]) -> None:
+        with self._lock:
+            stored = self._incidents.get(incident_id)
+            if stored is not None:
+                stored.incident = dict(incident)
+                stored.timeline = list(timeline)
+
     def clear_for_tests(self) -> None:
         with self._lock:
             self._incidents.clear()
