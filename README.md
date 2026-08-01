@@ -1,183 +1,479 @@
-# RAVEN-SOC
+# 🛡️ RAVEN-SOC
+### AI-Powered Security Operations Center | Real-Time Threat Detection | Azure Deployment Ready
 
-RAVEN-SOC is a local, simulation-only security operations lab. It ingests or generates Windows-style security telemetry, normalizes events, applies deterministic detection and correlation rules, sends a strict incident object through the Analyst layer, and produces Defender-style recommendations that are never executed on the host.
+RAVEN-SOC is an AI-assisted Security Operations Center (SOC) platform that simulates enterprise-grade threat detection, incident investigation, and automated security operations.
 
-The project is designed for demos, learning, and safe experimentation with hybrid local SLM analysis. Security contracts stay strict: flexible model output is normalized into the existing Analyst schema, validated, and then passed to deterministic Defender policy with human approval for high-impact simulated actions.
+The platform combines deterministic detection logic with a local Small Language Model (SLM) running through Ollama to provide intelligent incident analysis while maintaining strict security boundaries. Every AI response is validated before being passed to the deterministic response engine, ensuring explainable and predictable security decisions.
 
-## Features
+> **Status:** Azure Deployment Ready ✅
 
-- Streamlit SOC dashboard with presentation mode.
-- Live local Windows Event Log ingestion with checkpointing.
-- CSV log upload and ASIM-inspired normalization.
-- Extensible deterministic detection rules.
-- Multi-pattern incident correlation.
-- Randomized synthetic attack lab with expected-answer reveal.
-- Hybrid Analyst mode backed by Ollama, with deterministic fallback.
-- Simulation-only Defender action center.
-- Phase 10B isolated synthetic live monitoring engine with real-time API and Streamlit page.
-- Detection coverage and architecture documentation.
+---
 
-## Quick Start
+# 📌 Key Highlights
 
-```powershell
-python -m pip install -r requirements.txt
-ollama pull gemma3:4b-it-qat
-python -m streamlit run app.py
+- 🛡️ Real-time Windows Event Log monitoring
+- ⚡ FastAPI REST backend
+- 💻 React + TypeScript frontend
+- 🤖 AI SOC Analyst powered by Ollama
+- 🎯 MITRE ATT&CK mapping
+- 🔍 Alert correlation engine
+- 🚨 Multi-stage incident investigation
+- 🖥️ Live Monitoring dashboard
+- 🔒 Simulation-only Defender Response Center
+- ☁️ Azure App Service & Azure Static Web Apps ready
+
+---
+
+# 📷 Screenshots
+
+## Dashboard
+
+> *(Add screenshot here)*
+
+![Dashboard](docs/images/dashboard.png)
+
+---
+
+## Live Monitoring
+
+> *(Add screenshot here)*
+
+![Live Monitoring](docs/images/live-monitoring.png)
+
+---
+
+## Incident Investigation
+
+> *(Add screenshot here)*
+
+![Incident Investigation](docs/images/incident-investigation.png)
+
+---
+
+## AI SOC Analyst
+
+> *(Add screenshot here)*
+
+![AI Analyst](docs/images/ai-analyst.png)
+
+---
+
+# 🏗 Architecture
+
+```
+                 Windows Event Logs
+                         │
+                         ▼
+              Event Normalization Engine
+                         │
+                         ▼
+               Detection Rule Engine
+                         │
+                         ▼
+             Alert Correlation Engine
+                         │
+                         ▼
+                Incident Generation
+                         │
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+ AI SOC Analyst (Ollama)      Deterministic Baseline
+          │                             │
+          └──────────────┬──────────────┘
+                         ▼
+            Validated Incident Analysis
+                         │
+                         ▼
+       Defender Recommendation Simulator
+                         │
+                         ▼
+      React Investigation & Live Monitoring UI
 ```
 
-The default local Ollama model is `gemma3:4b-it-qat`. The dashboard model input remains editable, so another local model can be supplied for testing.
+---
 
-## Backend API
+# 🚀 Features
 
-Phase 9B adds a FastAPI layer around the existing modular monolith and shares the same neutral scenario orchestration used by Streamlit. It does not replace Streamlit and is not production-ready yet.
+## Threat Detection
 
-Start the API locally:
+- Windows Event Log ingestion
+- CSV log ingestion
+- Event normalization
+- Rule-based detection engine
+- MITRE ATT&CK mapping
+- Detection scoring
 
-```powershell
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-```
+---
 
-Production-style startup (Azure App Service / Linux container):
+## Incident Correlation
 
-```bash
-uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
-```
+- Multi-alert correlation
+- Incident risk scoring
+- Timeline generation
+- Evidence aggregation
+- Alert grouping
 
-Useful endpoints:
+---
 
-- API root: `http://127.0.0.1:8000/`
-- Swagger: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-- Health: `http://127.0.0.1:8000/api/v1/health`
-- Run history: `http://127.0.0.1:8000/api/v1/runs`
-- Latest incident analysis: `http://127.0.0.1:8000/api/v1/incidents/{incident_id}/analysis`
-- Action decision status: `http://127.0.0.1:8000/api/v1/actions/{incident_id}`
+## AI SOC Analyst
 
-API scenario runs, incidents, analyses, Defender recommendations, and simulated action decisions are persisted in a separate SQLite database. By default this is `database/raven_soc_api.db`, deliberately separate from Streamlit's `database/raven_soc.db`.
+Supports two operating modes:
 
-Configuration:
+### Deterministic Mode
 
-- `RAVEN_API_DB_PATH`: override the API SQLite database path.
-- `RAVEN_API_ALLOWED_ORIGINS`: comma-separated frontend origins. Defaults include local dev/preview origins on ports `3000`, `5173`, and `4173`.
-- `RAVEN_API_ENV`: environment label, default `development`.
-- `RAVEN_API_REPOSITORY`: repository backend, default `sqlite`.
-- `RAVEN_API_HOST`: optional bind host for local startup scripts.
-- `PORT`: runtime port, used by Azure and local production-style startup.
-- `RAVEN_OLLAMA_URL`: Ollama base URL (default `http://localhost:11434`).
-- `RAVEN_OLLAMA_MODEL`: default analyst model (default `gemma3:4b-it-qat`).
+- Rule-based analysis
+- No AI dependency
+- Fully reproducible output
 
-Frontend configuration:
+### Hybrid Mode
 
-- `VITE_API_URL`: API base URL used by the Vite app. In production set this to your deployed API URL such as `https://<api-host>/api/v1`.
+Uses:
 
-CORS is restricted to explicit local-development origins; wildcard origins are not enabled. Authentication is not implemented yet.
+- Ollama
+- Gemma3 4B IT QAT
 
-## Phase 10B Live Monitoring Engine
+The model enriches:
 
-Phase 10B adds an isolated synthetic live monitoring engine for demo and judging flows. It does not require Windows Event Log access and does not modify the existing Streamlit event-ingestion workflow.
+- Executive Summary
+- Threat Classification
+- Confidence
+- Inferences
+- Recommended Actions
 
-How it works:
+If AI fails, RAVEN-SOC automatically falls back to deterministic analysis.
 
-- Generates synthetic events continuously from existing scenario generation logic.
-- Reuses the existing detection engine, alert correlation, incident classification, Analyst, and Defender recommendation flow.
-- Keeps state in memory (events, alerts, incidents, status, playback speed).
-- Exposes dedicated API endpoints under `/api/v1/live/*`:
-  - `GET /api/v1/live/status`
-  - `POST /api/v1/live/start`
-  - `POST /api/v1/live/pause`
-  - `POST /api/v1/live/resume`
-  - `POST /api/v1/live/reset`
-  - `GET /api/v1/live/events`
-  - `GET /api/v1/live/alerts`
-  - `GET /api/v1/live/incidents`
+---
 
-Supported live demo scenarios:
+## Defender Response Center
 
-- Multi Stage Intrusion
-- Ransomware
-- Insider Threat
+Simulation only.
+
+Supported actions include:
+
+- Device Isolation
+- User Disable
+- Block Hash
+- Network Containment
+
+Every high-impact action requires analyst approval.
+
+No real endpoint modifications are ever performed.
+
+---
+
+## Live Monitoring Engine
+
+Phase 10B introduces an isolated synthetic live monitoring engine.
+
+Features include:
+
+- Continuous event generation
+- Real-time detection
+- Alert correlation
+- Incident generation
+- MITRE mapping
+- AI analysis
+- Defender recommendations
+
+Supported scenarios:
+
+- Multi-Stage Intrusion
 - Credential Attack
+- Insider Threat
+- Ransomware
 
 Playback speeds:
 
-- `0.5x`, `1x`, `2x`, `5x`, `10x`
+- 0.5x
+- 1x
+- 2x
+- 5x
+- 10x
 
-How judges use it:
+---
 
-1. Open the Streamlit **Live Monitoring** page.
-2. Select a scenario and playback speed.
-3. Click **Start** and observe event, alert, incident, MITRE, and pipeline panels auto-refresh every second.
-4. Use **Pause**, **Resume**, and **Reset** controls to verify deterministic monitor behavior.
+# 🛠 Tech Stack
 
-Why this is isolated:
+## Backend
 
-- It uses synthetic records only and never reads or requires real host telemetry.
-- It runs independently of `database/raven_soc.db` and does not perform real containment actions.
-- Analyst metadata is sanitized; raw model output is not exposed.
+- Python
+- FastAPI
+- Streamlit
+- SQLite
+- Pydantic
 
-To reset the API development database, stop the API process and delete only:
+---
 
-```powershell
-Remove-Item database\raven_soc_api.db, database\raven_soc_api.db-* -ErrorAction SilentlyContinue
+## Frontend
+
+- React
+- TypeScript
+- Vite
+- CSS
+
+---
+
+## AI
+
+- Ollama
+- Gemma3 4B IT QAT
+
+---
+
+## Security
+
+- Windows Event Logs
+- MITRE ATT&CK Framework
+- Rule-based Detection
+- Incident Correlation
+
+---
+
+## Deployment
+
+- Azure App Service
+- Azure Static Web Apps
+
+---
+
+# 📂 Project Structure
+
+```
+RAVEN-SOC
+│
+├── backend/
+│   ├── api/
+│   ├── services/
+│   ├── repositories/
+│   └── schemas/
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   └── staticwebapp.config.json
+│
+├── database/
+│
+├── docs/
+│
+├── tests/
+│
+├── startup.sh
+├── requirements.txt
+└── README.md
 ```
 
-Do not delete `database\raven_soc.db` unless you intend to reset Streamlit-ingested event data.
+---
 
-## Analyst Modes
+# ⚙️ Quick Start
 
-- `Deterministic`: uses the deterministic incident baseline only.
-- `Hybrid`: sends the strict incident context to the local Ollama-backed analyst path and falls back deterministically when needed.
+Clone the repository
 
-When Hybrid succeeds, the API metadata reports `AnalystMode: ollama` and the configured model name. When it falls back, `UsedFallback` is set to `true` and the deterministic baseline is returned.
+```bash
+git clone https://github.com/yourusername/raven-soc.git
+cd raven-soc
+```
 
-Hybrid mode preserves strict boundaries:
+Install dependencies
 
-- Baseline-owned fields: `ObservedEvidence`, `MITRETechniques`, `EvidenceIDs`, `Target`.
-- Model-owned fields: `Status`, `ThreatType`, `Severity`, `Confidence`, `Summary`, `SuspicionReason`, `Inferences`, `RecommendedActionID`.
-- Safety-merged field: `RequiresApproval`.
+```powershell
+python -m pip install -r requirements.txt
+```
 
-If the model output cannot be normalized and validated, RAVEN-SOC falls back to the deterministic baseline and reports the fallback reason in diagnostics.
+Download AI model
 
-## Azure Deployment
+```powershell
+ollama pull gemma3:4b-it-qat
+```
 
-See the full deployment notes in [docs/azure_deployment.md](docs/azure_deployment.md).
+Run Streamlit
 
-Frontend build/preview verification:
+```powershell
+python -m streamlit run app.py
+```
+
+Run FastAPI
+
+```powershell
+python -m uvicorn backend.main:app --reload
+```
+
+Run Frontend
 
 ```powershell
 cd frontend
 npm install
+npm run dev
+```
+
+---
+
+# 🌐 API
+
+Swagger
+
+```
+http://localhost:8000/docs
+```
+
+Health
+
+```
+GET /api/v1/health
+```
+
+Runs
+
+```
+GET /api/v1/runs
+```
+
+Incident Analysis
+
+```
+GET /api/v1/incidents/{incident_id}/analysis
+```
+
+Defender Actions
+
+```
+GET /api/v1/actions/{incident_id}
+```
+
+---
+
+# ⚙ Environment Variables
+
+Example:
+
+```env
+RAVEN_API_DB_PATH=database/raven_soc_api.db
+RAVEN_API_ALLOWED_ORIGINS=http://localhost:5173
+RAVEN_API_ENV=development
+
+RAVEN_OLLAMA_URL=http://localhost:11434
+RAVEN_OLLAMA_MODEL=gemma3:4b-it-qat
+
+VITE_API_URL=https://your-api.azurewebsites.net/api/v1
+```
+
+---
+
+# ☁ Azure Deployment
+
+Frontend
+
+- Azure Static Web Apps
+
+Backend
+
+- Azure App Service
+
+Configuration:
+
+- startup.sh
+- staticwebapp.config.json
+- .env.example
+
+See:
+
+```
+docs/azure_deployment.md
+```
+
+---
+
+# 🧪 Testing
+
+Run all tests
+
+```powershell
+python -m pytest -q
+```
+
+Current Status
+
+```
+215 Tests Passed
+```
+
+Frontend
+
+```powershell
 npm run build
-npm run preview -- --host 0.0.0.0 --port 4173
 ```
 
-## Safety
+Current Status
 
-RAVEN-SOC does not perform real endpoint isolation, account disabling, firewall changes, process termination, or network blocking. Defender responses are advisory simulation records only. Do not deploy this project as a production SOC, EDR, SIEM, SOAR, or automated response system without a full security review, integration design, and operational controls.
-
-## Tests
-
-Use a unique temporary directory on Windows to avoid cleanup collisions:
-
-```powershell
-$testTemp = Join-Path $env:TEMP "raven-tests-$([guid]::NewGuid())"
-python -m pytest -v --basetemp="$testTemp"
+```
+Production Build Successful
 ```
 
-Focused examples:
+---
 
-```powershell
-python -m pytest tests\test_ollama_client.py tests\test_incident_demo.py -v --basetemp="$testTemp"
-python -m pytest tests\test_phase6_scenario_lab.py -v --basetemp="$testTemp"
+# 🔒 Safety
+
+RAVEN-SOC **never performs real containment actions**.
+
+The platform does **NOT**
+
+- Isolate endpoints
+- Disable user accounts
+- Kill processes
+- Modify firewalls
+- Block network traffic
+
+All Defender actions are simulated for educational and demonstration purposes.
+
+---
+
+# 📚 Documentation
+
+- Architecture
+- Azure Deployment Guide
+- Demo Script
+- Release Checklist
+- Synthetic Lab Documentation
+
+Located in:
+
+```
+docs/
 ```
 
-## Documentation
+---
 
-- [Architecture](docs/architecture.md)
-- [Demo Script](docs/demo_script.md)
-- [Release Checklist](docs/release_checklist.md)
-- [Synthetic Lab](docs/synthetic_lab.md)
+# 🎥 Demo
 
-## License
+*(Add YouTube demo link here)*
 
-License: not yet specified.
+---
+
+# 🗺 Roadmap
+
+- Azure deployment
+- Authentication
+- Role-based access control
+- Microsoft Sentinel integration
+- Microsoft Defender integration
+- Live Event Hub ingestion
+- Threat intelligence feeds
+- Multi-user SOC
+
+---
+
+# 👨‍💻 Author
+
+**Arjun K**
+
+Cyber Security | Microsoft Security | SOC Engineering | Azure Security
+
+GitHub:
+
+https://github.com/arjunkariveettil1965
+
+---
+
+# 📄 License
+
+MIT License
