@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL
 from backend.dependencies import get_incident_repository
 from backend.repositories import IncidentRepository
 from backend.settings import settings
@@ -21,8 +20,8 @@ def health(repository: IncidentRepository = Depends(get_incident_repository)) ->
         "version": settings.version,
         "database": database,
         "ollama": {
-            "configured_url": DEFAULT_OLLAMA_URL,
-            "default_model": DEFAULT_OLLAMA_MODEL,
+            "configured_url": settings.ollama_url,
+            "default_model": settings.default_ollama_model,
             "checked": False,
         },
         "capabilities": {

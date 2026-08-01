@@ -162,7 +162,14 @@ def test_incident_list_retrieve_filters_and_datetime_serialization(client):
 
     listed = client.get("/api/v1/incidents").json()["Incidents"]
     assert any(item["IncidentID"] == incident_id for item in listed)
-    assert client.get(f"/api/v1/incidents/{incident_id}").json()["Incident"]["IncidentID"] == incident_id
+    incident_payload = client.get(f"/api/v1/incidents/{incident_id}").json()["Incident"]
+    assert incident_payload["IncidentID"] == incident_id
+    assert isinstance(incident_payload["AttackPathTimeline"], list)
+    assert isinstance(incident_payload["Timeline"], list)
+    assert isinstance(incident_payload["CorrelatedIndicators"], list)
+    assert isinstance(incident_payload["AlertMappings"], list)
+    assert isinstance(incident_payload["Alerts"], list)
+    assert incident_payload["DefenderRecommendation"]["ActionID"] == result["AnalystResult"]["RecommendedActionID"]
     assert client.get("/api/v1/incidents/missing").status_code == 404
     assert client.get("/api/v1/incidents", params={"severity": result["SelectedIncident"]["IncidentSeverity"]}).json()["Incidents"]
     assert client.get("/api/v1/incidents", params={"incident_type": "Intrusion"}).json()["Incidents"]

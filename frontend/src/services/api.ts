@@ -1,7 +1,7 @@
 // API Service for RAVEN-SOC FastAPI backend
-// With fallback mock data to support Azure Static Web Apps / offline modes
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const ENABLE_API_MOCKS = import.meta.env.VITE_ENABLE_API_MOCKS === 'true';
 
 async function safeFetch<T>(url: string, options?: RequestInit, fallbackData?: T): Promise<T> {
   try {
@@ -17,10 +17,11 @@ async function safeFetch<T>(url: string, options?: RequestInit, fallbackData?: T
     }
     return await response.json() as T;
   } catch (error) {
-    console.warn(`Failed to fetch from ${url}, using mock fallback. Error:`, error);
-    if (fallbackData !== undefined) {
+    if (ENABLE_API_MOCKS && fallbackData !== undefined) {
+      console.warn(`Failed to fetch from ${url}, using mock fallback. Error:`, error);
       return fallbackData;
     }
+    console.error(`Failed to fetch from ${url}:`, error);
     throw error;
   }
 }
@@ -113,6 +114,8 @@ export interface Incident {
   Score: number;
   Timeline: any[];
   Alerts: any[];
+  AlertMappings?: any[];
+  CorrelatedIndicators?: any[];
   MachineOverview?: {
     MachineID: string;
     RiskScore: number;
@@ -134,18 +137,169 @@ export interface Incident {
   [key: string]: any;
 }
 
+function firstFiniteNumber(...values: any[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeAlertRecord(alert: any): Record<string, any> {
+  const ruleName =
+    alert?.RuleName ||
+    alert?.AlertType ||
+    alert?.Title ||
+    alert?.RuleID ||
+    "";
+  return {
+    ...alert,
+    RuleName: ruleName,
+    Severity: alert?.Severity || alert?.AlertSeverity || "",
+    Tactic: alert?.Tactic || alert?.MITRETactic || "",
+    Technique: alert?.Technique || alert?.MITRETechnique || "",
+  };
+}
+
+function buildCollectionsFromTimeline(timeline: any[]): {
+  alerts: any[];
+  alertMappings: any[];
+  correlatedIndicators: any[];
+} {
+  const alerts: any[] = [];
+  const alertMappings: any[] = [];
+  const correlatedIndicators: any[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of timeline) {
+    const alertId = String(entry?.AlertID || "").trim();
+    const dedupeKey = alertId || `${entry?.AlertType}-${entry?.TimelineTime}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+
+    const normalized = normalizeAlertRecord({
+      AlertID: alertId,
+      AlertType: entry?.AlertType,
+      RuleName: entry?.AlertType,
+      AlertSeverity: entry?.AlertSeverity,
+      MITRETactic: entry?.MITRETactic,
+      MITRETechnique: entry?.MITRETechnique,
+      Evidence: entry?.Evidence,
+      AlertTime: entry?.TimelineTime,
+    });
+    if (!normalized.RuleName) {
+      continue;
+    }
+
+    alerts.push(normalized);
+    alertMappings.push({
+      AlertID: normalized.AlertID,
+      RuleName: normalized.RuleName,
+      Severity: normalized.Severity,
+      Tactic: normalized.Tactic,
+      Technique: normalized.Technique,
+      Evidence: entry?.Evidence || "",
+    });
+    correlatedIndicators.push({
+      Indicator: normalized.RuleName,
+      RuleName: normalized.RuleName,
+      Severity: normalized.Severity,
+      Tactic: normalized.Tactic,
+      Technique: normalized.Technique,
+    });
+  }
+
+  return { alerts, alertMappings, correlatedIndicators };
+}
+
+export function mergeIncidentsById(primary: Incident[], secondary: Incident[]): Incident[] {
+  const merged = new Map<string, Incident>();
+  for (const incident of primary) {
+    if (incident?.IncidentID) {
+      merged.set(incident.IncidentID, incident);
+    }
+  }
+  for (const incident of secondary) {
+    if (incident?.IncidentID) {
+      merged.set(incident.IncidentID, incident);
+    }
+  }
+  return Array.from(merged.values());
+}
+
 // Normalize incident objects from live stream and historical database structures
 export function normalizeIncident(data: any): Incident {
   const rawIncident = (data && data.Incident) ? data.Incident : data;
-  
-  const timeline = data?.Timeline || rawIncident?.Timeline || [];
+  const timelineSource =
+    data?.AttackPathTimeline ||
+    rawIncident?.AttackPathTimeline ||
+    data?.Timeline ||
+    rawIncident?.Timeline ||
+    [];
+  const timeline = Array.isArray(timelineSource)
+    ? timelineSource.map((entry: any) => {
+        const timestamp = entry?.Timestamp || entry?.TimelineTime || entry?.AlertTime || "";
+        const eventText =
+          entry?.Event ||
+          entry?.AlertType ||
+          entry?.Evidence ||
+          entry?.Description ||
+          "";
+        return {
+          ...entry,
+          Timestamp: timestamp,
+          Event: eventText,
+        };
+      })
+    : [];
+
+  const alertMappingsSource = data?.AlertMappings || rawIncident?.AlertMappings || [];
+  let alertMappings = Array.isArray(alertMappingsSource) ? alertMappingsSource : [];
+  let alertsSource = data?.Alerts || rawIncident?.Alerts || alertMappings;
+  let alerts = Array.isArray(alertsSource)
+    ? alertsSource.map((alert: any) => normalizeAlertRecord(alert))
+    : [];
+
+  let correlatedSource = data?.CorrelatedIndicators || rawIncident?.CorrelatedIndicators || [];
+  let correlatedIndicators = Array.isArray(correlatedSource) ? correlatedSource : [];
+
+  if ((!alerts.length || !correlatedIndicators.length) && timeline.length > 0) {
+    const derived = buildCollectionsFromTimeline(timeline);
+    if (!alerts.length) {
+      alerts = derived.alerts;
+    }
+    if (!alertMappings.length) {
+      alertMappings = derived.alertMappings;
+    }
+    if (!correlatedIndicators.length) {
+      correlatedIndicators = derived.correlatedIndicators;
+    }
+  }
   const recommendation = data?.DefenderRecommendation || rawIncident?.DefenderRecommendation || null;
   const analysis = data?.AnalystResult || rawIncident?.AnalystResult || null;
   const decision = rawIncident?.ActionDecision || null;
+  const incidentScore =
+    firstFiniteNumber(
+      rawIncident?.Score,
+      rawIncident?.RiskScore,
+      rawIncident?.IncidentConfidence,
+      rawIncident?.MaximumConfidenceScore,
+      rawIncident?.CorrelationScore
+    ) ?? 0;
 
   // Normalize defender recommendation status and text
   let defenderRec = null;
   if (recommendation) {
+    const actionId = recommendation.ActionID || recommendation.RecommendedActionID || "NO_ACTION";
     let status = "pending";
     if (decision) {
       status = decision.Decision;
@@ -156,9 +310,9 @@ export function normalizeIncident(data: any): Incident {
     }
 
     defenderRec = {
-      ActionID: recommendation.ActionID || recommendation.RecommendedActionID || "NO_ACTION",
-      Mitigation: recommendation.ActionID ? recommendation.ActionID.replace(/_/g, ' ') : (recommendation.Mitigation || "Monitor"),
-      Target: recommendation.Target || "",
+      ActionID: actionId,
+      Mitigation: recommendation.Mitigation || String(actionId).replace(/_/g, ' '),
+      Target: recommendation.Target || rawIncident.Target || rawIncident.AffectedDevice || "",
       Rationale: recommendation.DecisionReason || recommendation.Rationale || "No reasoning provided.",
       Status: status,
       Message: recommendation.SimulationMessage || recommendation.Message || ""
@@ -175,12 +329,14 @@ export function normalizeIncident(data: any): Incident {
   }
 
   // Normalize machine overview if available
-  const machineOverview = rawIncident?.MachineOverview || (rawIncident?.DeviceName ? {
-    MachineID: rawIncident.DeviceName,
-    RiskScore: rawIncident.Score || rawIncident.RiskScore || 50,
-    Criticality: rawIncident.Criticality || "Medium",
-    EventsAnalyzed: rawIncident.EventsCount || 0,
-    AnomaliesCount: rawIncident.AnomaliesCount || 0
+  const machineOverview = rawIncident?.MachineOverview || ((rawIncident?.DeviceName || rawIncident?.AffectedDevice || rawIncident?.Target) ? {
+    MachineID: rawIncident.DeviceName || rawIncident.AffectedDevice || rawIncident.Target,
+    RiskScore: incidentScore,
+    Criticality: rawIncident.Criticality || rawIncident.IncidentSeverity || rawIncident.Severity || "Medium",
+    EventsAnalyzed: rawIncident.EventsCount || rawIncident.AlertCount || 0,
+    AnomaliesCount: rawIncident.AnomaliesCount || rawIncident.AlertCount || 0,
+    HostStatus: rawIncident.HostStatus,
+    ContainmentStatus: rawIncident.ContainmentStatus,
   } : null);
 
   return {
@@ -188,12 +344,16 @@ export function normalizeIncident(data: any): Incident {
     IncidentID: rawIncident.IncidentID || rawIncident.incident_id,
     IncidentType: rawIncident.IncidentType || rawIncident.CorrelationPattern || rawIncident.incident_type || "Unknown Intrusion",
     Severity: rawIncident.Severity || rawIncident.IncidentSeverity || "Medium",
-    Score: rawIncident.Score || rawIncident.RiskScore || 0,
+    Score: incidentScore,
     State: rawIncident.State || (decision ? "Mitigated" : "New"),
     Timeline: timeline,
+    Alerts: alerts,
+    AlertMappings: alertMappings,
+    CorrelatedIndicators: correlatedIndicators,
     MachineOverview: machineOverview,
     DefenderRecommendation: defenderRec,
-    AnalystResult: analysis
+    AnalystResult: analysis,
+    AnalystMetadata: data?.AnalystMetadata || rawIncident?.AnalystMetadata,
   };
 }
 
@@ -222,8 +382,8 @@ const mockLiveStatus: LiveStatus = {
   latest_incident: null,
   last_error: null,
   updated_at: new Date().toISOString(),
-  supported_scenarios: ["Multi Stage Intrusion", "Ransomware Execution", "Credential Theft"],
-  supported_speeds: [0.5, 1.0, 2.0, 5.0]
+  supported_scenarios: ["Multi Stage Intrusion", "Ransomware", "Insider Threat", "Credential Attack"],
+  supported_speeds: [0.5, 1.0, 2.0, 5.0, 10.0]
 };
 
 const mockEvents: SecurityEvent[] = [
@@ -264,7 +424,14 @@ const mockIncidents = [
 
 export const ApiService = {
   async getHealth(): Promise<HealthStatus> {
-    return safeFetch<HealthStatus>(`${API_BASE_URL}/health`, undefined, mockHealth);
+    const raw = await safeFetch<any>(`${API_BASE_URL}/health`, undefined, mockHealth);
+    return {
+      ...raw,
+      database: {
+        ...raw.database,
+        path: raw?.database?.path || raw?.database?.path_display || mockHealth.database.path,
+      },
+    } as HealthStatus;
   },
 
   // Live Ingestion Services
@@ -313,8 +480,17 @@ export const ApiService = {
   },
 
   async getLiveAlerts(limit = 200): Promise<SecurityAlert[]> {
-    const data = await safeFetch<{ alerts: SecurityAlert[] }>(`${API_BASE_URL}/live/alerts?limit=${limit}`, undefined, { alerts: mockAlerts });
-    return data.alerts;
+    const data = await safeFetch<{ alerts: any[] }>(`${API_BASE_URL}/live/alerts?limit=${limit}`, undefined, { alerts: mockAlerts });
+    return data.alerts.map(alert => ({
+      AlertID: alert.AlertID || "",
+      RuleName: alert.RuleName || alert.AlertType || alert.RuleID || alert.Title || "Unknown Rule",
+      Severity: alert.Severity || alert.AlertSeverity || "Informational",
+      Timestamp: alert.Timestamp || alert.AlertTime || alert.TimeGenerated || "",
+      Tactic: alert.Tactic || alert.MITRETactic || (Array.isArray(alert.MITRETactics) ? alert.MITRETactics[0] : "") || "",
+      Technique: alert.Technique || alert.MITRETechnique || (Array.isArray(alert.MITRETechniques) ? alert.MITRETechniques[0] : "") || "",
+      Description: alert.Description || alert.Evidence || "",
+      EventCount: alert.EventCount || alert.RelatedEventCount || 0,
+    }));
   },
 
   async getLiveIncidents(limit = 100): Promise<Incident[]> {
@@ -332,8 +508,8 @@ export const ApiService = {
   },
 
   async getIncident(id: string): Promise<Incident> {
-    const data = await safeFetch<{ Incident: any }>(`${API_BASE_URL}/incidents/${id}`, undefined, { Incident: mockIncidents[0] });
-    return normalizeIncident(data.Incident);
+    const data = await safeFetch<{ Incident: any }>(`${API_BASE_URL}/incidents/${id}`, undefined, ENABLE_API_MOCKS ? { Incident: mockIncidents[0] } : undefined);
+    return normalizeIncident(data);
   },
 
   async analyzeIncident(id: string, mode: 'Deterministic' | 'Hybrid' = 'Hybrid', model?: string): Promise<any> {

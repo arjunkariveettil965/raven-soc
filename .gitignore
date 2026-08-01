@@ -1,11 +1,17 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
+*.env
+*.log
+frontend/dist/
 data/live_checkpoints.json
 .pytest-tmp/
 .api-test-dbs/
 database/raven_soc_api.db
 database/raven_soc_api.db-*
+database/raven_soc.db
+database/raven_soc.db-*
 database/*.db-shm
 database/*.db-wal

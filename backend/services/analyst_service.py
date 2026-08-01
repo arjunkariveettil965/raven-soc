@@ -5,9 +5,9 @@ import logging
 import pandas as pd
 
 from ai_analyst import agent as analyst_agent
-from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL
 from backend.repositories import IncidentRepository
 from backend.schemas.common import AnalystMode, serialize_api_value
+from backend.settings import settings
 
 
 logger = logging.getLogger(__name__)
@@ -29,14 +29,14 @@ def analyze_incident(
     if stored is None:
         return None
 
-    model = ollama_model or DEFAULT_OLLAMA_MODEL
+    model = ollama_model or settings.default_ollama_model
     analysis = analyst_agent.run_analyst_agent(
         incident=stored.incident,
         timeline=pd.DataFrame(stored.timeline),
         environment_name=str(stored.environment_profile.get("EnvironmentName", "Finance SME")),
         mode=mode.value.lower(),
         ollama_model=model,
-        ollama_base_url=DEFAULT_OLLAMA_URL,
+        ollama_base_url=settings.ollama_url,
     )
     metadata = analyst_agent.get_last_analyst_metadata()
     if metadata.get("UsedFallback"):

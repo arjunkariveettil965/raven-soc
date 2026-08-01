@@ -109,6 +109,10 @@ def test_live_event_alert_incident_generation_and_api_payloads(client: TestClien
     assert "Incident" in incident_payload[-1]
     assert "AnalystResult" in incident_payload[-1]
     assert "DefenderRecommendation" in incident_payload[-1]
+    inner = incident_payload[-1]["Incident"]
+    assert inner.get("CorrelatedIndicators")
+    assert inner.get("Alerts")
+    assert inner["CorrelatedIndicators"][0].get("Tactic")
 
 
 def test_live_api_rejects_invalid_inputs(client: TestClient):

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ApiService } from "./services/api";
+import { ApiService, mergeIncidentsById } from "./services/api";
 import type { AnalystMetadata, HealthStatus, LiveStatus, SecurityEvent, SecurityAlert, Incident } from "./services/api";
 import "./App.css";
 
@@ -21,6 +21,7 @@ function App() {
   const [analystMetadata, setAnalystMetadata] = useState<AnalystMetadata | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [apiOnline, setApiOnline] = useState<boolean>(false);
 
   // Live monitor config
   const [selectedScenario, setSelectedScenario] = useState<string>("Multi Stage Intrusion");
@@ -28,6 +29,21 @@ function App() {
 
   // Poll intervals
   const pollIntervalRef = useRef<any>(null);
+  const liveIncidentsRef = useRef<Incident[]>([]);
+
+  const refreshLiveFeeds = async () => {
+    const [statusData, liveEvts, liveAlrts, liveIncs] = await Promise.all([
+      ApiService.getLiveStatus(),
+      ApiService.getLiveEvents(50),
+      ApiService.getLiveAlerts(50),
+      ApiService.getLiveIncidents(20),
+    ]);
+    setLiveStatus(statusData);
+    liveIncidentsRef.current = liveIncs;
+    setEvents(liveEvts);
+    setAlerts(liveAlrts);
+    setIncidents(liveIncs);
+  };
 
   // Fetch initial health and status
   useEffect(() => {
@@ -35,14 +51,17 @@ function App() {
       try {
         const healthData = await ApiService.getHealth();
         setHealth(healthData);
+        setApiOnline(healthData.status === "healthy");
         
         const statusData = await ApiService.getLiveStatus();
         setLiveStatus(statusData);
+        setSpeed(statusData.speed || 1.0);
         if (statusData.supported_scenarios?.length > 0) {
           setSelectedScenario(statusData.scenario || statusData.supported_scenarios[0]);
         }
       } catch (err) {
         console.error("Initialization error:", err);
+        setApiOnline(false);
       }
     }
     init();
@@ -57,16 +76,16 @@ function App() {
           setIncidents(list);
           const activeStatus = await ApiService.getLiveStatus();
           setLiveStatus(activeStatus);
+          setSpeed(activeStatus.speed || 1.0);
         } else if (currentTab === "live") {
-          const liveEvts = await ApiService.getLiveEvents(50);
-          setEvents(liveEvts);
-          const liveAlrts = await ApiService.getLiveAlerts(50);
-          setAlerts(liveAlrts);
-          const liveIncs = await ApiService.getLiveIncidents(20);
-          setIncidents(liveIncs);
+          await refreshLiveFeeds();
         } else if (currentTab === "incidents") {
-          const list = await ApiService.listIncidents(50);
-          setIncidents(list);
+          const [list, liveIncs] = await Promise.all([
+            ApiService.listIncidents(50),
+            ApiService.getLiveIncidents(20).catch(() => [] as Incident[]),
+          ]);
+          liveIncidentsRef.current = liveIncs;
+          setIncidents(mergeIncidentsById(list, liveIncs));
         }
       } catch (err) {
         console.error("Error fetching tab data:", err);
@@ -82,16 +101,26 @@ function App() {
         try {
           const statusData = await ApiService.getLiveStatus();
           setLiveStatus(statusData);
+          if (statusData.speed !== undefined) {
+            setSpeed(statusData.speed);
+          }
 
           if (currentTab === "live") {
-            const liveEvts = await ApiService.getLiveEvents(50);
+            const [liveEvts, liveAlrts, liveIncs] = await Promise.all([
+              ApiService.getLiveEvents(50),
+              ApiService.getLiveAlerts(50),
+              ApiService.getLiveIncidents(20),
+            ]);
+            liveIncidentsRef.current = liveIncs;
             setEvents(liveEvts);
-            const liveAlrts = await ApiService.getLiveAlerts(50);
             setAlerts(liveAlrts);
-            const liveIncs = await ApiService.getLiveIncidents(20);
             setIncidents(liveIncs);
           } else if (currentTab === "dashboard") {
-            const list = await ApiService.listIncidents(5);
+            const [list, activeStatus] = await Promise.all([
+              ApiService.listIncidents(5),
+              ApiService.getLiveStatus(),
+            ]);
+            setLiveStatus(activeStatus);
             setIncidents(list);
           }
         } catch (err) {
@@ -124,22 +153,31 @@ function App() {
       try {
         const details = await ApiService.getIncident(selectedIncidentId);
         setSelectedIncident(details);
-        setAiReport(null);
+        setAiReport(details.AnalystResult ?? null);
         setAnalystMetadata(null);
         setActionMessage(null);
 
-        // check if there's any existing analysis report
-        try {
-          const analysis = await ApiService.getLatestAnalysis(selectedIncidentId);
-          if (analysis && analysis.AnalystResult) {
-            setAiReport(analysis.AnalystResult);
-            setAnalystMetadata(analysis.AnalystMetadata ?? null);
+        if (!details.AnalystResult) {
+          try {
+            const analysis = await ApiService.getLatestAnalysis(selectedIncidentId);
+            if (analysis && analysis.AnalystResult) {
+              setAiReport(analysis.AnalystResult);
+              setAnalystMetadata(analysis.AnalystMetadata ?? null);
+            }
+          } catch (_) {
+            // ignore missing persisted analysis
           }
-        } catch (_) {
-          // ignore
         }
       } catch (err) {
-        console.error("Error loading incident details:", err);
+        const cached = liveIncidentsRef.current.find((item) => item.IncidentID === selectedIncidentId);
+        if (cached) {
+          setSelectedIncident(cached);
+          setAiReport(cached.AnalystResult ?? null);
+          setAnalystMetadata((cached as any).AnalystMetadata ?? null);
+          setActionMessage(null);
+        } else {
+          console.error("Error loading incident details:", err);
+        }
       }
     }
     loadIncidentDetails();
@@ -150,6 +188,10 @@ function App() {
     try {
       const status = await ApiService.startLive(selectedScenario, speed);
       setLiveStatus(status);
+      setSpeed(status.speed || speed);
+      if (currentTab === "live") {
+        await refreshLiveFeeds();
+      }
     } catch (err) {
       alert("Failed to start live monitoring");
     }
@@ -159,6 +201,7 @@ function App() {
     try {
       const status = await ApiService.pauseLive();
       setLiveStatus(status);
+      setSpeed(status.speed || speed);
     } catch (err) {
       alert("Failed to pause live monitoring");
     }
@@ -168,6 +211,10 @@ function App() {
     try {
       const status = await ApiService.resumeLive(speed);
       setLiveStatus(status);
+      setSpeed(status.speed || speed);
+      if (currentTab === "live") {
+        await refreshLiveFeeds();
+      }
     } catch (err) {
       alert("Failed to resume live monitoring");
     }
@@ -177,6 +224,7 @@ function App() {
     try {
       const status = await ApiService.resetLive();
       setLiveStatus(status);
+      setSpeed(status.speed || 1.0);
       setEvents([]);
       setAlerts([]);
       setIncidents([]);
@@ -228,6 +276,19 @@ function App() {
     }
   };
 
+  const actionRecommendation = selectedIncident?.DefenderRecommendation ?? (
+    aiReport?.RecommendedActionID
+      ? {
+          ActionID: aiReport.RecommendedActionID,
+          Mitigation: aiReport.RecommendedActionID.replace(/_/g, " "),
+          Target: aiReport.Target || selectedIncident?.MachineOverview?.MachineID || selectedIncident?.IncidentID || "",
+          Rationale: aiReport.SuspicionReason || aiReport.Summary || "Analysis recommendation.",
+          Status: aiReport.RequiresApproval === false ? "auto-executed" : "pending",
+          Message: "",
+        }
+      : null
+  );
+
   return (
     <div className="app-container">
       
@@ -241,9 +302,9 @@ function App() {
           </div>
         </div>
         <div className="health-badge-container">
-          <div className={`health-indicator ${health?.status === "healthy" ? "healthy" : "unhealthy"}`}></div>
+          <div className={`health-indicator ${apiOnline ? "healthy" : "unhealthy"}`}></div>
           <span className="health-text">
-            API: {health?.status === "healthy" ? "Connected" : "Offline (Mock Mode)"}
+            API: {apiOnline ? "Connected" : "Offline"}
           </span>
         </div>
       </header>
@@ -626,26 +687,77 @@ function App() {
                         {/* Associated Alerts */}
                         <div className="sub-panel">
                           <h3>Correlated Indicators & Rules</h3>
-                          <ul className="correlated-alerts-list">
-                            {selectedIncident.Alerts?.map((a, i) => (
-                              <li key={i} className="alert-list-item">
-                                <span className="alert-rule-name">{a.RuleName || "Trigger Rule"}</span>
-                                <span className="alert-severity-badge">{a.Severity}</span>
-                              </li>
-                            )) || <li className="empty-state">No direct alert mappings.</li>}
-                          </ul>
+                          {(selectedIncident.CorrelatedIndicators?.length ?? 0) > 0 ? (
+                            <ul className="correlated-alerts-list">
+                              {selectedIncident.CorrelatedIndicators?.map((indicator, i) => (
+                                <li key={i} className="alert-list-item">
+                                  <span className="alert-rule-name">
+                                    {indicator.RuleName || indicator.Indicator}
+                                    {(indicator.Tactic || indicator.Technique) && (
+                                      <div className="text-sub">
+                                        {[indicator.Tactic, indicator.Technique].filter(Boolean).join(" / ")}
+                                      </div>
+                                    )}
+                                  </span>
+                                  <span className="alert-severity-badge">{indicator.Severity || selectedIncident.Severity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="empty-state">No direct correlated indicators.</div>
+                          )}
+
+                          <h3>Alert Mappings / Alerts</h3>
+                          {(selectedIncident.Alerts?.length ?? 0) > 0 ? (
+                            <ul className="correlated-alerts-list">
+                              {selectedIncident.Alerts?.map((alertItem, i) => (
+                                <li key={i} className="alert-list-item">
+                                  <span className="alert-rule-name">
+                                    {alertItem.RuleName || alertItem.AlertType || alertItem.RuleID || "Alert"}
+                                    {(alertItem.Tactic || alertItem.MITRETactic || alertItem.Technique || alertItem.MITRETechnique) && (
+                                      <div className="text-sub">
+                                        {[
+                                          alertItem.Tactic || alertItem.MITRETactic,
+                                          alertItem.Technique || alertItem.MITRETechnique,
+                                        ].filter(Boolean).join(" / ")}
+                                      </div>
+                                    )}
+                                  </span>
+                                  <span className="alert-severity-badge">
+                                    {alertItem.Severity || alertItem.AlertSeverity || selectedIncident.Severity}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="empty-state">No direct alert mappings.</div>
+                          )}
                         </div>
 
                         {/* Timeline */}
                         <div className="sub-panel">
                           <h3>Attack Path Timeline</h3>
                           <div className="timeline-container">
-                            {selectedIncident.Timeline?.map((t, i) => (
-                              <div key={i} className="timeline-item">
-                                <div className="timeline-time">{t.Timestamp ? new Date(t.Timestamp).toLocaleTimeString() : "--"}</div>
-                                <div className="timeline-desc">{t.Event}</div>
-                              </div>
-                            )) || <div className="empty-state">Timeline unavailable.</div>}
+                            {(selectedIncident.Timeline?.length ?? 0) > 0 ? (
+                              selectedIncident.Timeline?.map((t, i) => (
+                                <div key={i} className="timeline-item">
+                                  <div className="timeline-time">{t.Timestamp ? new Date(t.Timestamp).toLocaleTimeString() : "--"}</div>
+                                  <div className="timeline-desc">
+                                    <strong>{t.AlertType || t.Event || "Timeline Event"}</strong>
+                                    {t.Evidence && <div>{t.Evidence}</div>}
+                                    <div className="text-sub">
+                                      {[
+                                        t.AlertSeverity || t.Severity,
+                                        t.MITRETactic || t.Tactic,
+                                        t.MITRETechnique || t.Technique,
+                                      ].filter(Boolean).join(" | ")}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="empty-state">Timeline unavailable.</div>
+                            )}
                           </div>
                         </div>
 
@@ -725,26 +837,26 @@ function App() {
                         </div>
 
                         {/* Defender Mitigation Recommendation */}
-                        {selectedIncident.DefenderRecommendation && (
+                        {actionRecommendation && (
                           <div className="sub-panel mitigation-panel">
                             <h3>🛡️ Simulated Defender Action</h3>
                             <div className="mitigation-box">
                               <div className="mitigation-recommendation">
                                 <strong>Recommended Action:</strong>
-                                <span className="mitigation-badge">{selectedIncident.DefenderRecommendation.Mitigation}</span>
+                                <span className="mitigation-badge">{actionRecommendation.Mitigation}</span>
                               </div>
                               <div className="mitigation-target">
                                 <span>Target Endpoint:</span>
-                                <strong>{selectedIncident.DefenderRecommendation.Target}</strong>
+                                <strong>{actionRecommendation.Target}</strong>
                               </div>
                               <div className="mitigation-rationale">
                                 <span>Rationale:</span>
-                                <p>{selectedIncident.DefenderRecommendation.Rationale}</p>
+                                <p>{actionRecommendation.Rationale}</p>
                               </div>
                               <div className="mitigation-status">
                                 <span>Action Status:</span>
-                                <span className={`status-tag ${selectedIncident.DefenderRecommendation.Status}`}>
-                                  {selectedIncident.DefenderRecommendation.Status.toUpperCase()}
+                                <span className={`status-tag ${actionRecommendation.Status}`}>
+                                  {actionRecommendation.Status.toUpperCase()}
                                 </span>
                               </div>
 
@@ -754,7 +866,7 @@ function App() {
                                 </div>
                               )}
 
-                              {selectedIncident.DefenderRecommendation.Status === "pending" && (
+                              {actionRecommendation.Status === "pending" && (
                                 <div className="mitigation-actions">
                                   <button className="btn btn-success" onClick={handleApproveAction}>
                                     Approve Action

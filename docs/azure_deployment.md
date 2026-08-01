@@ -4,8 +4,8 @@
 
 Run the FastAPI service with:
 
-```powershell
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
 Recommended environment variables:
@@ -14,6 +14,8 @@ Recommended environment variables:
 - `RAVEN_API_ALLOWED_ORIGINS`: comma-separated frontend origins.
 - `RAVEN_API_ENV`: deployment label such as `production`.
 - `RAVEN_API_REPOSITORY`: repository backend, typically `sqlite`.
+- `RAVEN_OLLAMA_URL`: Ollama base URL if local/sidecar Ollama is used.
+- `RAVEN_OLLAMA_MODEL`: default model name for hybrid analysis.
 
 The API database is separate from the Streamlit demo database by default. Keep that separation in production unless you are intentionally migrating historical demo data.
 
@@ -25,10 +27,23 @@ Build locally with:
 
 ```powershell
 cd frontend
+npm install
 npm run build
 ```
 
 Set `VITE_API_URL` to the deployed API base URL, for example `https://<your-api-host>/api/v1`.
+
+Preview check:
+
+```powershell
+npm run preview -- --host 0.0.0.0 --port 4173
+```
+
+## Azure App Service / Static Web Apps commands
+
+- Backend startup command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+- Frontend build command: `npm ci && npm run build`
+- Frontend artifact path: `frontend/dist`
 
 ## Database
 

@@ -37,6 +37,12 @@ Start the API locally:
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Production-style startup (Azure App Service / Linux container):
+
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
 Useful endpoints:
 
 - API root: `http://127.0.0.1:8000/`
@@ -52,13 +58,17 @@ API scenario runs, incidents, analyses, Defender recommendations, and simulated 
 Configuration:
 
 - `RAVEN_API_DB_PATH`: override the API SQLite database path.
-- `RAVEN_API_ALLOWED_ORIGINS`: comma-separated local frontend origins. Defaults to local React/Next.js/Vite origins on ports `3000` and `5173`.
+- `RAVEN_API_ALLOWED_ORIGINS`: comma-separated frontend origins. Defaults include local dev/preview origins on ports `3000`, `5173`, and `4173`.
 - `RAVEN_API_ENV`: environment label, default `development`.
 - `RAVEN_API_REPOSITORY`: repository backend, default `sqlite`.
+- `RAVEN_API_HOST`: optional bind host for local startup scripts.
+- `PORT`: runtime port, used by Azure and local production-style startup.
+- `RAVEN_OLLAMA_URL`: Ollama base URL (default `http://localhost:11434`).
+- `RAVEN_OLLAMA_MODEL`: default analyst model (default `gemma3:4b-it-qat`).
 
 Frontend configuration:
 
-- `VITE_API_URL`: API base URL used by the Vite app. Defaults to `http://localhost:8000/api/v1`.
+- `VITE_API_URL`: API base URL used by the Vite app. In production set this to your deployed API URL such as `https://<api-host>/api/v1`.
 
 CORS is restricted to explicit local-development origins; wildcard origins are not enabled. Authentication is not implemented yet.
 
@@ -131,6 +141,15 @@ If the model output cannot be normalized and validated, RAVEN-SOC falls back to 
 ## Azure Deployment
 
 See the full deployment notes in [docs/azure_deployment.md](docs/azure_deployment.md).
+
+Frontend build/preview verification:
+
+```powershell
+cd frontend
+npm install
+npm run build
+npm run preview -- --host 0.0.0.0 --port 4173
+```
 
 ## Safety
 

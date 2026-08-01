@@ -9,8 +9,10 @@ import pandas as pd
 
 from ai_analyst import agent as analyst_agent
 from ai_analyst import environment_adapter
-from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL
+from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL
 from backend.schemas.common import serialize_api_value
+from backend.services.incident_service import build_incident_alert_collections
+from backend.settings import settings
 from collector.monitoring_state import find_unseen_alerts
 from data_generation.scenario_lab import generate_scenario
 from detection.alert_engine import analyze_security_events
@@ -115,7 +117,7 @@ class LiveMonitoringService:
         self._latest_incident: dict[str, object] | None = None
         self._environment_name = "Finance SME"
         self._analyst_mode = "deterministic"
-        self._ollama_model = DEFAULT_OLLAMA_MODEL
+        self._ollama_model = settings.default_ollama_model
         self._last_error: str | None = None
         self._updated_at = datetime.now(UTC).isoformat()
         self._all_events_df = pd.DataFrame()
@@ -192,7 +194,7 @@ class LiveMonitoringService:
                 environment_name=self._environment_name,
                 mode=self._analyst_mode,
                 ollama_model=self._ollama_model,
-                ollama_base_url=DEFAULT_OLLAMA_URL,
+                ollama_base_url=settings.ollama_url,
             )
             analyst_metadata = _safe_metadata(analyst_agent.get_last_analyst_metadata())
             profile = environment_adapter.get_environment_profile(environment_name=self._environment_name)
@@ -202,6 +204,18 @@ class LiveMonitoringService:
                 environment_profile=environment_profile,
                 human_approved=False,
             )
+
+            alert_records = [
+                serialize_api_value(alert.to_dict())  # type: ignore[arg-type]
+                for _, alert in alerts.iterrows()
+            ]
+            alerts_payload, alert_mappings, correlated_indicators = build_incident_alert_collections(
+                incident_payload,
+                alert_records,  # type: ignore[arg-type]
+            )
+            incident_payload["Alerts"] = alerts_payload
+            incident_payload["AlertMappings"] = alert_mappings
+            incident_payload["CorrelatedIndicators"] = correlated_indicators
 
             incident_result = {
                 "Incident": incident_payload,
@@ -276,7 +290,7 @@ class LiveMonitoringService:
             self._seed = int(seed) if seed is not None else int(datetime.now(UTC).timestamp()) % 1_000_000_000
             self._seed_cursor = self._seed
             self._analyst_mode = str(analyst_mode).strip().lower() or "deterministic"
-            self._ollama_model = str(ollama_model).strip() or DEFAULT_OLLAMA_MODEL
+            self._ollama_model = str(ollama_model).strip() or settings.default_ollama_model
             self._generate_batch_locked()
             self._status = "running"
             self._last_error = None
@@ -344,4 +358,3 @@ class LiveMonitoringService:
 
 
 live_monitoring_service = LiveMonitoringService()
-

@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import pandas as pd
 
-from ai_analyst.ollama_client import DEFAULT_OLLAMA_MODEL
 from backend.repositories import IncidentRepository, StoredIncident
 from backend.schemas.common import serialize_api_value
 from backend.schemas.scenarios import ScenarioMode, ScenarioRunRequest
+from backend.settings import settings
 from core.scenario_pipeline import run_synthetic_defender_response, run_synthetic_incident_pipeline
 from data_generation.scenario_lab import DIFFICULTIES, NOISE_LEVELS, list_scenarios
 
@@ -58,7 +58,7 @@ def run_scenario(request: ScenarioRunRequest, repository: IncidentRepository) ->
     scenario_name = request.scenario_name or "multi_stage_intrusion"
     dashboard_mode = "Random Scenario" if request.scenario_mode is ScenarioMode.random else "Select Scenario"
     analyst_mode = "hybrid" if request.analyst_mode.value == "Hybrid" else "deterministic"
-    model = request.ollama_model or DEFAULT_OLLAMA_MODEL
+    model = request.ollama_model or settings.default_ollama_model
 
     logger.info("Scenario run started: mode=%s difficulty=%s", request.scenario_mode.value, request.difficulty.value)
     result = run_synthetic_incident_pipeline(
