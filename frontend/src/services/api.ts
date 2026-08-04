@@ -1,7 +1,7 @@
 // API Service for RAVEN-SOC FastAPI backend
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
-const ENABLE_API_MOCKS = import.meta.env.VITE_ENABLE_API_MOCKS === 'true';
+const ENABLE_API_MOCKS = false;
 
 async function safeFetch<T>(url: string, options?: RequestInit, fallbackData?: T): Promise<T> {
   try {

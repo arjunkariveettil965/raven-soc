@@ -32,17 +32,23 @@ function App() {
   const liveIncidentsRef = useRef<Incident[]>([]);
 
   const refreshLiveFeeds = async () => {
-    const [statusData, liveEvts, liveAlrts, liveIncs] = await Promise.all([
-      ApiService.getLiveStatus(),
-      ApiService.getLiveEvents(50),
-      ApiService.getLiveAlerts(50),
-      ApiService.getLiveIncidents(20),
-    ]);
-    setLiveStatus(statusData);
-    liveIncidentsRef.current = liveIncs;
-    setEvents(liveEvts);
-    setAlerts(liveAlrts);
-    setIncidents(liveIncs);
+    try {
+      const [statusData, liveEvts, liveAlrts, liveIncs] = await Promise.all([
+        ApiService.getLiveStatus(),
+        ApiService.getLiveEvents(50),
+        ApiService.getLiveAlerts(50),
+        ApiService.getLiveIncidents(20),
+      ]);
+      setLiveStatus(statusData);
+      liveIncidentsRef.current = liveIncs;
+      setEvents(liveEvts);
+      setAlerts(liveAlrts);
+      setIncidents(liveIncs);
+      setApiOnline(true);
+    } catch (err) {
+      console.error("Error refreshing live feeds:", err);
+      setApiOnline(false);
+    }
   };
 
   // Fetch initial health and status
@@ -154,7 +160,7 @@ function App() {
         const details = await ApiService.getIncident(selectedIncidentId);
         setSelectedIncident(details);
         setAiReport(details.AnalystResult ?? null);
-        setAnalystMetadata(null);
+        setAnalystMetadata(details.AnalystMetadata ?? null);
         setActionMessage(null);
 
         if (!details.AnalystResult) {

@@ -125,6 +125,11 @@ def _format_stored_incident(repository: IncidentRepository, stored: object) -> d
     incident["AlertMappings"] = alert_mappings
     incident["CorrelatedIndicators"] = correlated_indicators
 
+    if getattr(stored, "analysis", None):
+        incident["AnalystResult"] = getattr(stored, "analysis")
+    if getattr(stored, "analyst_metadata", None):
+        incident["AnalystMetadata"] = getattr(stored, "analyst_metadata")
+
     defender_recommendation = _build_defender_recommendation(stored, incident)
     if defender_recommendation is not None:
         incident["DefenderRecommendation"] = defender_recommendation
