@@ -3,7 +3,8 @@
 ```mermaid
 flowchart TD
     S[Streamlit dashboard] --> C[Core scenario pipeline]
-    A[FastAPI backend] --> C
+    R[React / Vite Dashboard] --> A[FastAPI backend]
+    A --> C
     C --> D[Detection rules]
     D --> E[Incident correlation]
     E --> F[Analyst baseline and Hybrid adapter]
@@ -12,7 +13,7 @@ flowchart TD
     H --> I[Human approval gate]
     I --> J[Simulation-only audit record]
     S --> K[Streamlit event database raven_soc.db]
-    A --> L[API database raven_soc_api.db]
+    A --> L[API database database/raven_soc_api.db]
 ```
 
 ## Security Contracts
@@ -55,10 +56,17 @@ Hybrid Analyst mode fails closed. If Ollama is unavailable, the model returns ma
 
 ## State and Storage
 
-The Streamlit dashboard stores interaction state in `st.session_state`. Live ingestion uses checkpoints so monitoring can resume from the intended Windows Event Log position. The Streamlit SQLite database stores ingested events for dashboard exploration.
+The system provides two presentation layers:
+1. **Streamlit Dashboard:** Stores interaction state in `st.session_state`. Live ingestion uses checkpoints so monitoring can resume from the intended Windows Event Log position. The Streamlit SQLite database stores ingested events for dashboard exploration.
+2. **React + Vite Frontend:** An interactive modern single-page application communicating directly with the FastAPI backend.
 
-The FastAPI backend uses a separate SQLite database, `database/raven_soc_api.db`, for API-created scenario runs, incidents, Analyst results, and simulated action decisions. The databases are separate in Phase 9B so backend persistence can evolve without migrating or mutating the existing Streamlit runtime event store.
+The FastAPI backend uses a separate SQLite database, `database/raven_soc_api.db`, for API-created scenario runs, incidents, Analyst results, and simulated action decisions. The databases are separate so backend persistence can evolve without migrating or mutating the existing Streamlit runtime event store.
+
+## Live Monitoring and Threat Simulator
+
+The React frontend includes an isolated Live Monitoring UI. It communicates with the backend scenario simulator which streams pre-configured synthetic threat scenarios (e.g., Ransomware, Multi-stage Intrusion, Brute Force, Insider Threat) in-memory, ensuring absolute isolation from the production datastores.
 
 ## Defender Boundary
 
 Defender recommendations are policy decisions, not real actions. Approval and rejection produce simulation-only audit records. The application never executes model output and never modifies endpoints, accounts, firewall rules, or processes.
+
