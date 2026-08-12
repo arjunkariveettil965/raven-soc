@@ -76,3 +76,22 @@ def test_complete_alert_engine() -> None:
     assert alerts["AlertTime"].is_monotonic_increasing
     assert alerts["ConfidenceScore"].between(0, 100).all()
     assert alerts["DeviceName"].eq("CFO-PC").all()
+
+
+def test_event_burst_normalization() -> None:
+    from detection.rule_engine import detect_event_bursts
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "DeviceName": ["PC-1"] * 5,
+        "EventSource": ["Auth"] * 5,
+        "EventSeverity": ["warning", "error", "critical", "warn", "3"],
+        "EventTime": ["2026-07-18 10:00:00"] * 5
+    })
+
+    alerts = detect_event_bursts(df, threshold=2, window_minutes=10)
+    assert not alerts.empty
+    # We should have warnings mapped to medium (count=2: warning, warn), error/critical/3 mapped to high (count=3: error, critical, 3)
+    # The high alerts should trigger because count = 3 >= threshold=2
+    # The medium alerts should trigger because count = 2 >= threshold=2
+    assert set(alerts["EventSeverity"]) == {"High", "Medium"}

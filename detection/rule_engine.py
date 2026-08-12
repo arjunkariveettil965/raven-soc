@@ -50,15 +50,21 @@ def detect_event_bursts(
         ]
     )
 
+    def normalize_severity(sev_val: object) -> str:
+        s = str(sev_val).strip().lower() if sev_val is not None else ""
+        if s in ("medium", "warning", "warn", "2"):
+            return "medium"
+        if s in ("high", "error", "critical", "3", "4"):
+            return "high"
+        return s
+
     working_logs["EventSeverityNormalized"] = (
         working_logs["EventSeverity"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
+        .apply(normalize_severity)
     )
 
-    # Medium represents the original Warning events.
-    # High represents the original Error events.
+    # Medium represents the original Warning/medium events.
+    # High represents the original Error/high events.
     suspicious_logs = working_logs[
         working_logs["EventSeverityNormalized"].isin(
             ["medium", "high"]
