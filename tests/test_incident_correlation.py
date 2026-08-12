@@ -65,6 +65,7 @@ def test_unrelated_devices_create_separate_incidents() -> None:
         start_time=cfo_events.iloc[0]["EventTime"] + pd.Timedelta(minutes=1),
         device_name="HR-PC",
         user_name="hr.user",
+        source_ip="198.51.100.22",
     )
 
     combined = pd.concat([cfo_events, hr_events], ignore_index=True)
@@ -103,3 +104,46 @@ def test_empty_correlation_inputs() -> None:
     assert empty_timeline.empty
 
     assert format_incident_timeline(empty_timeline) == []
+
+
+def test_cross_device_user_correlation() -> None:
+    alerts = pd.DataFrame([
+        {
+            "AlertID": "A1",
+            "AlertTime": "2026-07-18 10:00:00",
+            "DeviceName": "CFO-PC",
+            "UserName": "admin.user",
+            "SourceIP": "10.0.0.1",
+            "AlertType": "Failed Login Burst",
+            "AlertSeverity": "High",
+            "ConfidenceScore": 70.0,
+            "MITRETactic": "Credential Access",
+            "MITRETechnique": "T1110",
+            "Evidence": "A1 evidence",
+            "FirstSeen": "2026-07-18 10:00:00",
+            "LastSeen": "2026-07-18 10:00:00",
+            "RelatedEventCount": 5,
+        },
+        {
+            "AlertID": "A2",
+            "AlertTime": "2026-07-18 10:05:00",
+            "DeviceName": "HR-PC",
+            "UserName": "admin.user",
+            "SourceIP": "10.0.0.1",
+            "AlertType": "Suspicious PowerShell",
+            "AlertSeverity": "High",
+            "ConfidenceScore": 80.0,
+            "MITRETactic": "Execution",
+            "MITRETechnique": "T1059.001",
+            "Evidence": "A2 evidence",
+            "FirstSeen": "2026-07-18 10:05:00",
+            "LastSeen": "2026-07-18 10:05:00",
+            "RelatedEventCount": 1,
+        }
+    ])
+
+    incidents = correlate_alerts(alerts, minimum_correlation_score=50)
+    assert len(incidents) == 1
+    assert incidents.iloc[0]["AlertCount"] == 2
+    assert "CFO-PC" in [incidents.iloc[0]["AffectedDevice"], incidents.iloc[0]["Target"]]
+

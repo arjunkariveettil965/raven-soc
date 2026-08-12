@@ -393,7 +393,17 @@ def correlate_alerts(
 
             left_device = _normalize_text(left_alert.get("DeviceName"))
             right_device = _normalize_text(right_alert.get("DeviceName"))
-            if not left_device or not right_device or left_device != right_device:
+            left_user = _normalize_text(left_alert.get("UserName"))
+            right_user = _normalize_text(right_alert.get("UserName"))
+            left_ip = _normalize_text(left_alert.get("SourceIP"))
+            right_ip = _normalize_text(right_alert.get("SourceIP"))
+
+            has_shared_pivot = (
+                (left_device and left_device == right_device) or
+                (left_user and left_user == right_user) or
+                (left_ip and left_ip == right_ip)
+            )
+            if not has_shared_pivot:
                 continue
 
             left_time = pd.to_datetime(left_alert.get("AlertTime"), errors="coerce")
