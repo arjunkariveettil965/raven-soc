@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from backend.schemas.common import AnalystMode, StrictBaseModel
 
@@ -52,6 +52,12 @@ class ScenarioRunRequest(StrictBaseModel):
 
         stripped = value.strip()
         return stripped or None
+
+    @model_validator(mode="after")
+    def validate_select_mode(self) -> ScenarioRunRequest:
+        if self.scenario_mode == ScenarioMode.select and not self.scenario_name:
+            raise ValueError("scenario_name is required when scenario_mode is 'select'")
+        return self
 
 
 class ScenarioRunResponse(StrictBaseModel):

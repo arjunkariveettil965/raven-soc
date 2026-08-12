@@ -246,3 +246,20 @@ def test_phase9_regression_imports_still_work():
     assert importlib.util.find_spec("app") is not None
     assert importlib.util.find_spec("dashboard.presentation") is not None
     assert importlib.util.find_spec("dashboard.incident_demo") is not None
+
+
+def test_scenario_validation_select_mode_requires_name(client):
+    response = client.post(
+        "/api/v1/scenarios/run",
+        json={
+            "scenario_mode": "select",
+            "scenario_name": None,
+            "difficulty": "Medium",
+            "noise_level": "Low",
+            "seed": 12345,
+            "analyst_mode": "Deterministic",
+        },
+    )
+    assert response.status_code == 422
+    assert "scenario_name is required" in response.text
+
