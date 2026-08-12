@@ -1,479 +1,214 @@
 # 🛡️ RAVEN-SOC
-### AI-Powered Security Operations Center | Real-Time Threat Detection | Azure Deployment Ready
 
-RAVEN-SOC is an AI-assisted Security Operations Center (SOC) platform that simulates enterprise-grade threat detection, incident investigation, and automated security operations.
+### Enterprise-Inspired Security Operations Center & Intelligent Threat Detection Platform
 
-The platform combines deterministic detection logic with a local Small Language Model (SLM) running through Ollama to provide intelligent incident analysis while maintaining strict security boundaries. Every AI response is validated before being passed to the deterministic response engine, ensuring explainable and predictable security decisions.
-
-> **Status:** Azure Deployment Ready ✅
+RAVEN-SOC is an AI-assisted Security Operations Center (SOC) incident detection, correlation, and response platform. It is engineered to ingest raw security events, normalize log streams, apply deterministic detection signatures, correlate alerts into multi-stage threat timelines, and provide LLM-powered investigation context using a local AI Analyst.
 
 ---
 
-# 📌 Key Highlights
-
-- 🛡️ Real-time Windows Event Log monitoring
-- ⚡ FastAPI REST backend
-- 💻 React + TypeScript frontend
-- 🤖 AI SOC Analyst powered by Ollama
-- 🎯 MITRE ATT&CK mapping
-- 🔍 Alert correlation engine
-- 🚨 Multi-stage incident investigation
-- 🖥️ Live Monitoring dashboard
-- 🔒 Simulation-only Defender Response Center
-- ☁️ Azure App Service & Azure Static Web Apps ready
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Framework-green?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19.2-cyan?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-Database-lightgrey?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Tests](https://img.shields.io/badge/Tests-218%20Passed-brightgreen?logo=pytest&logoColor=white)](#-testing)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-# 📷 Screenshots
+## 📌 Overview
 
-## Dashboard
+Modern security teams are overwhelmed by log volumes and individual low-context alerts. RAVEN-SOC addresses this challenge by providing a structured, multi-layer analysis pipeline that translates raw events into meaningful, actionable security incidents.
 
-> *(Add screenshot here)*
-
-![Dashboard](docs/images/dashboard.png)
-
----
-
-## Live Monitoring
-
-> *(Add screenshot here)*
-
-![Live Monitoring](docs/images/live-monitoring.png)
-
----
-
-## Incident Investigation
-
-> *(Add screenshot here)*
-
-![Incident Investigation](docs/images/incident-investigation.png)
-
----
-
-## AI SOC Analyst
-
-> *(Add screenshot here)*
-
-![AI Analyst](docs/images/ai-analyst.png)
-
----
-
-# 🏗 Architecture
+The system combines a deterministic rule-based core with an intelligent AI Analyst powered by a local Small Language Model (SLM) running via Ollama. By deploying local reasoning, RAVEN-SOC offers deep context enrichment and remediation guidance while ensuring strict security boundaries and zero external data leakage.
 
 ```
-                 Windows Event Logs
-                         │
-                         ▼
-              Event Normalization Engine
-                         │
-                         ▼
-               Detection Rule Engine
-                         │
-                         ▼
-             Alert Correlation Engine
-                         │
-                         ▼
-                Incident Generation
-                         │
-          ┌──────────────┴──────────────┐
-          ▼                             ▼
- AI SOC Analyst (Ollama)      Deterministic Baseline
-          │                             │
-          └──────────────┬──────────────┘
-                         ▼
-            Validated Incident Analysis
-                         │
-                         ▼
-       Defender Recommendation Simulator
-                         │
-                         ▼
-      React Investigation & Live Monitoring UI
+Raw Event Logs (CSV/EVTX) ──> Detection Detections ──> Alert Correlation ──> Incident Context ──> AI Analyst Enrichment
 ```
 
 ---
 
-# 🚀 Features
+## 🏗 Architecture
 
-## Threat Detection
+RAVEN-SOC utilizes a modular pipeline that isolates log collection, deterministic detection logic, state persistence, and AI-assisted investigation.
 
-- Windows Event Log ingestion
-- CSV log ingestion
-- Event normalization
-- Rule-based detection engine
-- MITRE ATT&CK mapping
-- Detection scoring
+![RAVEN-SOC Architecture](docs/images/raven-soc-architecture.png)
+
+*The high-level RAVEN-SOC processing, correlation, and investigation pipeline. The synthetic live-monitoring environment runs isolated from the core production threat log storage.*
 
 ---
 
-## Incident Correlation
+## ⚡ Core Capabilities
 
-- Multi-alert correlation
-- Incident risk scoring
-- Timeline generation
-- Evidence aggregation
-- Alert grouping
-
----
-
-## AI SOC Analyst
-
-Supports two operating modes:
-
-### Deterministic Mode
-
-- Rule-based analysis
-- No AI dependency
-- Fully reproducible output
-
-### Hybrid Mode
-
-Uses:
-
-- Ollama
-- Gemma3 4B IT QAT
-
-The model enriches:
-
-- Executive Summary
-- Threat Classification
-- Confidence
-- Inferences
-- Recommended Actions
-
-If AI fails, RAVEN-SOC automatically falls back to deterministic analysis.
+| Area | Capability | Verified Implementation Details |
+|---|---|---|
+| **Event Ingestion** | Multi-Source Normalization | Ingests Windows Event Logs (EVTX) and CSV records; standardizes field names and timestamp metadata. |
+| **Detection Engine** | Rules-based signatures | Applies signature rules mapped directly to threat activities and MITRE ATT&CK techniques. |
+| **Correlation Engine**| Multi-stage alert grouping | Links individual alerts into cohesive incidents based on common targets, indicators, and timelines. |
+| **Incident Management**| Risk Priority Scoring | Computes severity, compiles forensic evidence, and presents incident lifecycles. |
+| **MITRE ATT&CK** | Attack Path Mapping | Maps detected behaviors directly to MITRE Tactics and Techniques (e.g., T1110, T1486). |
+| **AI Analyst** | Local LLM enrichment | Uses local Ollama model (Gemma3) to generate summaries, evaluate confidence, and recommend responses. |
+| **Response Center** | Simulated remediation actions | Recommends host isolation, process termination, user disablement, or IP blocks. |
+| **Live Monitoring** | Isolated synthetic stream | Demonstrates SOC capabilities by streaming pre-configured attack scenarios with playback speed controls. |
+| **REST API** | FastAPI Backend | Exposes clean REST API endpoints for frontend consumption, scenario controls, and AI triggers. |
+| **Web UI** | React + Vite Dashboard | Provides interactive incident detail views, live monitoring panels, and human-in-the-loop action approval. |
 
 ---
 
-## Defender Response Center
+## 🔍 Investigation Workflow
 
-Simulation only.
+RAVEN-SOC processes security signals using the following structured pipeline:
 
-Supported actions include:
-
-- Device Isolation
-- User Disable
-- Block Hash
-- Network Containment
-
-Every high-impact action requires analyst approval.
-
-No real endpoint modifications are ever performed.
+1. **Ingestion & Normalization:** Events are parsed from files (CSV) or Windows Event Logs (EVTX) and mapped to a unified schema.
+2. **Deterministic Detection:** The detection engine evaluates the normalized events against rules and generates alerts.
+3. **Alert Correlation:** The correlation engine analyzes the alerts chronologically to group related suspicious activities.
+4. **Incident Generation:** An Incident record is created, capturing the aggregated evidence, scope, and affected assets.
+5. **MITRE ATT&CK Mapping:** Detections are enriched with technique IDs, aligning them with the cyber kill chain.
+6. **Timeline Assembly:** An interactive, chronological list of events and alerts is compiled for human inspection.
+7. **AI Analyst Enrichment:** If Hybrid Mode is enabled, the local AI Analyst generates an executive summary and assesses confidence.
+8. **Action Verification:** Recommended response actions (e.g., isolate host) are queued, requiring manual analyst approval.
 
 ---
 
-## Live Monitoring Engine
+## 🤖 AI Analyst Integration
 
-Phase 10B introduces an isolated synthetic live monitoring engine.
+RAVEN-SOC features a local AI Analyst to assist human investigators without introducing external data privacy risks.
 
-Features include:
-
-- Continuous event generation
-- Real-time detection
-- Alert correlation
-- Incident generation
-- MITRE mapping
-- AI analysis
-- Defender recommendations
-
-Supported scenarios:
-
-- Multi-Stage Intrusion
-- Credential Attack
-- Insider Threat
-- Ransomware
-
-Playback speeds:
-
-- 0.5x
-- 1x
-- 2x
-- 5x
-- 10x
+- **Deterministic Baseline:** Evaluates events using static rules. This fallback runs instantly if the local LLM is offline or returns invalid schemas.
+- **Hybrid AI Enrichment:** Calls Ollama locally to enrich the incident details. The model enriches:
+  - **Executive Summary:** Plain-text description of the malicious activity.
+  - **Threat Classification:** Tactical assessment of the threat type.
+  - **Confidence:** Probability assessment of the detection validity.
+  - **Inferences:** Analysis of attacker intent or next steps.
+  - **Recommended Actions:** Remediation playbooks tailored to the context.
+- **Safety Gate:** The AI model is strictly restricted to recommending actions. It cannot bypass deterministic safety policies (e.g., a critical approval gate).
 
 ---
 
-# 🛠 Tech Stack
+## 🖥 Isolated Live Monitoring Demo
 
-## Backend
+RAVEN-SOC includes an isolated, synthetic threat simulation engine. It generates event streams to illustrate platform capabilities in real-time.
 
-- Python
-- FastAPI
-- Streamlit
-- SQLite
-- Pydantic
-
----
-
-## Frontend
-
-- React
-- TypeScript
-- Vite
-- CSS
+- **Strict Isolation:** The simulator operates in memory and on dedicated database structures. It has no access to production credentials or containment capabilities.
+- **Attack Scenarios:**
+  - **Multi-Stage Intrusion:** Lateral movement, credential access, and defense evasion.
+  - **Ransomware:** Suspicious file encryption activity and volume deletion.
+  - **Insider Threat:** Data exfiltration and unauthorized resource access.
+  - **Credential Attack:** Password spray and brute-force attempts.
+- **Playback Controls:** The simulation stream can be configured to play at `0.5x`, `1x`, `2x`, `5x`, or `10x` speeds.
 
 ---
 
-## AI
+## ⚙️ Quick Start
 
-- Ollama
-- Gemma3 4B IT QAT
+### Prerequisites
+- **Python:** Version 3.10 or 3.11
+- **Node.js & npm:** For the frontend application
+- **Ollama:** Running locally (optional, required for AI Analyst Hybrid Mode)
 
----
+### Installation
 
-## Security
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/yourusername/raven-soc.git
+   cd raven-soc
+   ```
 
-- Windows Event Logs
-- MITRE ATT&CK Framework
-- Rule-based Detection
-- Incident Correlation
+2. **Set Up Python Virtual Environment:**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate      # Windows
+   source .venv/bin/activate    # Linux/macOS
+   ```
 
----
+3. **Install Dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Deployment
-
-- Azure App Service
-- Azure Static Web Apps
-
----
-
-# 📂 Project Structure
-
-```
-RAVEN-SOC
-│
-├── backend/
-│   ├── api/
-│   ├── services/
-│   ├── repositories/
-│   └── schemas/
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── staticwebapp.config.json
-│
-├── database/
-│
-├── docs/
-│
-├── tests/
-│
-├── startup.sh
-├── requirements.txt
-└── README.md
-```
+4. **Initialize Local AI Model (Ollama):**
+   Ensure Ollama is running, then pull the default model:
+   ```bash
+   ollama pull gemma3:4b-it-qat
+   ```
 
 ---
 
-# ⚙️ Quick Start
+### Running RAVEN-SOC
 
-Clone the repository
+To run the full stack locally:
 
+#### 1. Start the FastAPI Backend
 ```bash
-git clone https://github.com/yourusername/raven-soc.git
-cd raven-soc
+python -m uvicorn backend.main:app --reload --port 8000
 ```
+*Verify the backend is active at [http://localhost:8000/docs](http://localhost:8000/docs)*
 
-Install dependencies
-
-```powershell
-python -m pip install -r requirements.txt
-```
-
-Download AI model
-
-```powershell
-ollama pull gemma3:4b-it-qat
-```
-
-Run Streamlit
-
-```powershell
-python -m streamlit run app.py
-```
-
-Run FastAPI
-
-```powershell
-python -m uvicorn backend.main:app --reload
-```
-
-Run Frontend
-
-```powershell
+#### 2. Start the React Frontend
+```bash
 cd frontend
 npm install
 npm run dev
 ```
+*Access the SOC console at the address output by Vite (typically `http://localhost:5173`)*
 
----
-
-# 🌐 API
-
-Swagger
-
-```
-http://localhost:8000/docs
-```
-
-Health
-
-```
-GET /api/v1/health
-```
-
-Runs
-
-```
-GET /api/v1/runs
-```
-
-Incident Analysis
-
-```
-GET /api/v1/incidents/{incident_id}/analysis
-```
-
-Defender Actions
-
-```
-GET /api/v1/actions/{incident_id}
+#### 3. Run the Streamlit Dashboard (Alternative Interface)
+```bash
+python -m streamlit run app.py
 ```
 
 ---
 
-# ⚙ Environment Variables
+## 🧪 Testing
 
-Example:
+RAVEN-SOC has a comprehensive pytest suite covering ingestion engines, rules, correlation logic, API routes, and simulated action policies.
 
-```env
-RAVEN_API_DB_PATH=database/raven_soc_api.db
-RAVEN_API_ALLOWED_ORIGINS=http://localhost:5173
-RAVEN_API_ENV=development
+To run the tests:
+```bash
+python -m pytest -v
+```
 
-RAVEN_OLLAMA_URL=http://localhost:11434
-RAVEN_OLLAMA_MODEL=gemma3:4b-it-qat
-
-VITE_API_URL=https://your-api.azurewebsites.net/api/v1
+### Verified Test Status
+```text
+tests/test_ai_agent.py .........................                      [ 11%]
+tests/test_attack_simulator.py .................                      [ 19%]
+tests/test_defender_agent.py ...................                      [ 28%]
+tests/test_detection_rules.py ..................                      [ 36%]
+tests/test_incident_correlation.py .............                      [ 42%]
+...
+======================== 218 passed in 20.24s ========================
 ```
 
 ---
 
-# ☁ Azure Deployment
+## 🌐 API Reference
 
-Frontend
+FastAPI exposes the following core endpoints (prefix: `/api/v1`):
 
-- Azure Static Web Apps
-
-Backend
-
-- Azure App Service
-
-Configuration:
-
-- startup.sh
-- staticwebapp.config.json
-- .env.example
-
-See:
-
-```
-docs/azure_deployment.md
-```
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Returns service status and platform configuration. |
+| `/incidents` | GET | Lists security incidents (supports severity & type filtering). |
+| `/incidents/{incident_id}` | GET | Returns details, evidence, and alerts for a single incident. |
+| `/incidents/{incident_id}/analyze` | POST | Triggers AI Analyst enrichment (Deterministic/Hybrid). |
+| `/incidents/{incident_id}/analysis` | GET | Retrieves the latest saved AI analysis. |
+| `/actions/{incident_id}` | GET | Fetches the pending defender action for an incident. |
+| `/actions/{incident_id}/approve` | POST | Approves the recommended defender containment action. |
+| `/actions/{incident_id}/reject` | POST | Rejects the recommended defender containment action. |
+| `/live/status` | GET | Gets the status of the synthetic demo monitor. |
+| `/live/start` | POST | Launches a simulation run with a scenario and speed. |
+| `/live/pause` | POST | Pauses the active simulation run. |
+| `/live/resume` | POST | Resumes a paused simulation run. |
+| `/live/reset` | POST | Resets the live monitoring database and state. |
 
 ---
 
-# 🧪 Testing
+## 🛡️ Safety & Simulation Statement
 
-Run all tests
-
-```powershell
-python -m pytest -q
-```
-
-Current Status
-
-```
-215 Tests Passed
-```
-
-Frontend
-
-```powershell
-npm run build
-```
-
-Current Status
-
-```
-Production Build Successful
-```
+RAVEN-SOC is built to **simulate** security operations. The platform contains a "Defender Response Center" which lists isolation or block recommendations. **No actual endpoint, network, or policy changes are ever executed on the host system.** All defender actions are simulation-only audit records designed for education and workflow evaluation.
 
 ---
 
-# 🔒 Safety
+## 📄 License
 
-RAVEN-SOC **never performs real containment actions**.
-
-The platform does **NOT**
-
-- Isolate endpoints
-- Disable user accounts
-- Kill processes
-- Modify firewalls
-- Block network traffic
-
-All Defender actions are simulated for educational and demonstration purposes.
-
----
-
-# 📚 Documentation
-
-- Architecture
-- Azure Deployment Guide
-- Demo Script
-- Release Checklist
-- Synthetic Lab Documentation
-
-Located in:
-
-```
-docs/
-```
-
----
-
-# 🎥 Demo
-
-*(Add YouTube demo link here)*
-
----
-
-# 🗺 Roadmap
-
-- Azure deployment
-- Authentication
-- Role-based access control
-- Microsoft Sentinel integration
-- Microsoft Defender integration
-- Live Event Hub ingestion
-- Threat intelligence feeds
-- Multi-user SOC
-
----
-
-# 👨‍💻 Author
-
-**Arjun K**
-
-Cyber Security | Microsoft Security | SOC Engineering | Azure Security
-
-GitHub:
-
-https://github.com/arjunkariveettil1965
-
----
-
-# 📄 License
-
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

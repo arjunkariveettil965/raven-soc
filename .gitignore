@@ -15,3 +15,6 @@ database/raven_soc.db
 database/raven_soc.db-*
 database/*.db-shm
 database/*.db-wal
+
+# Local coding-agent metadata
+.agents/
