@@ -123,15 +123,20 @@ def classify_incidents(incidents: pd.DataFrame) -> pd.DataFrame:
             classification_reason = "The incident did not match a known classification pattern."
 
         highest_severity = _normalize_text(incident.get("HighestAlertSeverity")) or "Low"
-        if highest_severity == "Critical" and len(attack_stages) >= 3:
+        alert_count = int(incident.get("AlertCount", 0))
+        if highest_severity == "Critical" and (len(attack_stages) >= 2 or alert_count >= 2):
+            incident_severity = "Critical"
+        elif highest_severity == "High" and len(attack_stages) >= 3:
             incident_severity = "Critical"
         elif highest_severity in {"Critical", "High"}:
             incident_severity = "High"
-        else:
+        elif highest_severity == "Medium":
             incident_severity = "Medium"
+        else:
+            incident_severity = "Low"
 
         maximum_confidence = float(incident.get("MaximumConfidenceScore", 0))
-        incident_confidence = min(100.0, maximum_confidence + (5 if incident.get("AlertCount", 0) >= 3 else 0) + (5 if len(attack_stages) >= 3 else 0))
+        incident_confidence = min(100.0, maximum_confidence + (5 if alert_count >= 3 else 0) + (5 if len(attack_stages) >= 3 else 0))
 
         classified_rows.append(
             {

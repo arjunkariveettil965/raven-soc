@@ -147,3 +147,30 @@ def test_cross_device_user_correlation() -> None:
     assert incidents.iloc[0]["AlertCount"] == 2
     assert "CFO-PC" in [incidents.iloc[0]["AffectedDevice"], incidents.iloc[0]["Target"]]
 
+
+def test_incident_severity_classification_refinement() -> None:
+    incidents = pd.DataFrame([
+        {
+            "HighestAlertSeverity": "High",
+            "AlertCount": 3,
+            "MITRETactics": ["Credential Access", "Execution", "Command and Control"],
+            "MaximumConfidenceScore": 85.0,
+            "CorrelationPattern": "Custom Pattern",
+        },
+        {
+            "HighestAlertSeverity": "Low",
+            "AlertCount": 1,
+            "MITRETactics": ["Credential Access"],
+            "MaximumConfidenceScore": 50.0,
+            "CorrelationPattern": "Custom Pattern",
+        }
+    ])
+
+    classified = classify_incidents(incidents)
+    assert len(classified) == 2
+    # The first incident has HighestAlertSeverity = "High" but spans 3 stages -> upgraded to "Critical"
+    assert classified.iloc[0]["IncidentSeverity"] == "Critical"
+    # The second incident has HighestAlertSeverity = "Low" and only 1 stage -> maps to "Low"
+    assert classified.iloc[1]["IncidentSeverity"] == "Low"
+
+
