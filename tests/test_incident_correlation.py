@@ -174,3 +174,14 @@ def test_incident_severity_classification_refinement() -> None:
     assert classified.iloc[1]["IncidentSeverity"] == "Low"
 
 
+def test_mitre_mapping_validation() -> None:
+    from incidents.correlation_engine import is_valid_mitre_technique
+    assert is_valid_mitre_technique("T1110") is True
+    assert is_valid_mitre_technique("T1059.001") is True
+    assert is_valid_mitre_technique("T1110 - Brute Force") is True
+    assert is_valid_mitre_technique("INVALID_TECHNIQUE") is False
+    assert is_valid_mitre_technique("T12") is False
+    assert is_valid_mitre_technique("T12345") is False
+
+
+

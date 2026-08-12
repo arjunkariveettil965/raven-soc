@@ -155,19 +155,26 @@ def _target_for_action(action_id: str, alerts: pd.DataFrame) -> str:
     return ""
 
 
+def is_valid_mitre_technique(tech: str) -> bool:
+    import re
+    tech_clean = tech.strip()
+    match = re.search(r'\bT\d{4}(?:\.\d{3})?\b', tech_clean)
+    return match is not None
+
+
 def _collect_mitre_techniques(alerts: pd.DataFrame, fallback: list[str]) -> list[str]:
     techniques: list[str] = []
     if "MITRETechniques" in alerts.columns:
         for value in alerts["MITRETechniques"].tolist():
             for item in _coerce_list(value):
-                if item and item not in techniques:
+                if item and is_valid_mitre_technique(item) and item not in techniques:
                     techniques.append(item)
     for value in alerts["MITRETechnique"].tolist():
         text = _normalize_text(value)
-        if text and text not in techniques:
+        if text and is_valid_mitre_technique(text) and text not in techniques:
             techniques.append(text)
     for value in fallback:
-        if value and value not in techniques:
+        if value and is_valid_mitre_technique(value) and value not in techniques:
             techniques.append(value)
     return techniques
 
