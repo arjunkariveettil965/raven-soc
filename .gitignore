@@ -1,20 +1,39 @@
+# Python virtual environments
 venv/
 .venv/
+
+# Python cache / compiled files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Environment / secrets
 .env
+.env.*
 *.env
+
+# Logs
 *.log
+
+# Frontend build output
 frontend/dist/
+
+# Local runtime / generated data
 data/live_checkpoints.json
+
+# Test artifacts
 .pytest-tmp/
 .api-test-dbs/
-database/raven_soc_api.db
-database/raven_soc_api.db-*
-database/raven_soc.db
-database/raven_soc.db-*
+
+# Local SQLite databases
+database/*.db
+database/*.db-*
 database/*.db-shm
 database/*.db-wal
 
 # Local coding-agent metadata
 .agents/
+
+# IDE / editor
+.vscode/
+.idea/
