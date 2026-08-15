@@ -2,7 +2,7 @@
 
 ### Enterprise-Inspired Security Operations Center & Intelligent Threat Detection Platform
 
-RAVEN-SOC is an AI-assisted Security Operations Center (SOC) incident detection, correlation, and response platform. It is engineered to ingest raw security events, normalize log streams, apply deterministic detection signatures, correlate alerts into multi-stage threat timelines, and provide LLM-powered investigation context using a local AI Analyst.
+RAVEN-SOC is a local-first, AI-assisted Security Operations Center platform for security event ingestion, threat detection, alert correlation, incident classification, MITRE ATT&CK mapping, AI-assisted investigation, and safe response simulation.
 
 ---
 
@@ -11,7 +11,7 @@ RAVEN-SOC is an AI-assisted Security Operations Center (SOC) incident detection,
 [![React](https://img.shields.io/badge/React-19.2-cyan?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-Database-lightgrey?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-218%20Passed-brightgreen?logo=pytest&logoColor=white)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-224%20Passed,%203%20Failed-red?logo=pytest&logoColor=white)](#-testing)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -35,6 +35,8 @@ RAVEN-SOC utilizes a modular pipeline that isolates log collection, deterministi
 ![RAVEN-SOC Architecture](docs/images/raven-soc-architecture.png)
 
 *The high-level RAVEN-SOC processing, correlation, and investigation pipeline. The synthetic live-monitoring environment runs isolated from the core production threat log storage.*
+
+The modular architecture can be containerized and deployed to cloud infrastructure such as Microsoft Azure in a future production deployment, but cloud deployment is not required for the current demonstration.
 
 ---
 
@@ -110,7 +112,7 @@ RAVEN-SOC includes an isolated, synthetic threat simulation engine. It generates
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/yourusername/raven-soc.git
+   git clone https://github.com/arjunkariveettil965/raven-soc.git
    cd raven-soc
    ```
 
@@ -176,7 +178,7 @@ tests/test_defender_agent.py ...................                      [ 28%]
 tests/test_detection_rules.py ..................                      [ 36%]
 tests/test_incident_correlation.py .............                      [ 42%]
 ...
-======================== 218 passed in 20.24s ========================
+================== 3 failed, 224 passed in 15.38s ==================
 ```
 
 ---
