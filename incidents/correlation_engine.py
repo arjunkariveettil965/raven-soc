@@ -329,6 +329,14 @@ def _pairwise_correlation_score(
     return score
 
 
+def _is_malware(alert: pd.Series) -> bool:
+    alert_type = str(alert.get("AlertType", "")).lower()
+    alert_id = str(alert.get("AlertID", "")).lower()
+    if "malware" in alert_type or alert_id.startswith("malware-"):
+        return True
+    return alert_type in {"suspicious download command", "suspicious file execution"}
+
+
 def correlate_alerts(
     alerts: pd.DataFrame,
     correlation_window_minutes: int = 30,
@@ -405,10 +413,15 @@ def correlate_alerts(
             left_ip = _normalize_text(left_alert.get("SourceIP"))
             right_ip = _normalize_text(right_alert.get("SourceIP"))
 
+            # Only consider alerts that share the same device as a pivot for generic correlation.
+            # This prevents cross-machine correlation where alerts share user or IP but belong to different devices.
+            # Correlate alerts when they share the same device OR the same user (excluding malware alerts).
+            # IP-based correlation is omitted to avoid cross‑device linking solely by IP.
+            is_malware_left = _is_malware(left_alert)
+            is_malware_right = _is_malware(right_alert)
             has_shared_pivot = (
                 (left_device and left_device == right_device) or
-                (left_user and left_user == right_user) or
-                (left_ip and left_ip == right_ip)
+                (left_user and left_user == right_user and not (is_malware_left or is_malware_right))
             )
             if not has_shared_pivot:
                 continue
