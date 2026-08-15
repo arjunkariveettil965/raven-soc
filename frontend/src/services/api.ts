@@ -134,6 +134,10 @@ export interface Incident {
     Message?: string;
   };
   AnalystResult?: any;
+  isEphemeral?: boolean;
+  source?: string;
+  is_ephemeral?: boolean;
+  actions_supported?: boolean;
   [key: string]: any;
 }
 
@@ -341,11 +345,11 @@ export function normalizeIncident(data: any): Incident {
 
   return {
     ...rawIncident,
-    IncidentID: rawIncident.IncidentID || rawIncident.incident_id,
-    IncidentType: rawIncident.IncidentType || rawIncident.CorrelationPattern || rawIncident.incident_type || "Unknown Intrusion",
-    Severity: rawIncident.Severity || rawIncident.IncidentSeverity || "Medium",
+    IncidentID: rawIncident?.IncidentID || rawIncident?.ID || "INC-UNKNOWN",
+    IncidentType: rawIncident?.IncidentType || rawIncident?.Type || "Unknown",
+    Severity: rawIncident?.Severity || rawIncident?.IncidentSeverity || "Low",
+    State: rawIncident?.State || rawIncident?.Status || "Open",
     Score: incidentScore,
-    State: rawIncident.State || (decision ? "Mitigated" : "New"),
     Timeline: timeline,
     Alerts: alerts,
     AlertMappings: alertMappings,
@@ -354,6 +358,9 @@ export function normalizeIncident(data: any): Incident {
     DefenderRecommendation: defenderRec,
     AnalystResult: analysis,
     AnalystMetadata: data?.AnalystMetadata || rawIncident?.AnalystMetadata,
+    source: rawIncident?.source,
+    is_ephemeral: rawIncident?.is_ephemeral,
+    actions_supported: rawIncident?.actions_supported,
   };
 }
 

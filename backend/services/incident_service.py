@@ -145,14 +145,43 @@ def list_incidents(
     severity: str | None = None,
     incident_type: str | None = None,
 ) -> list[dict[str, object]]:
-    return [
-        _format_stored_incident(repository, stored)
-        for stored in repository.list_incidents(limit=limit, severity=severity, incident_type=incident_type)
-    ]
+    results: list[dict[str, object]] = []
+    for stored in repository.list_incidents(limit=limit, severity=severity, incident_type=incident_type):
+        incident = _format_stored_incident(repository, stored)
+        incident["source"] = "repository"
+        incident["is_ephemeral"] = False
+        incident["actions_supported"] = True
+        results.append(incident)
+    return results
 
 
 def get_incident(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
     stored = repository.get_incident(incident_id)
-    if stored is None:
-        return None
-    return _format_stored_incident(repository, stored)
+    if stored is not None:
+        incident = _format_stored_incident(repository, stored)
+        incident["source"] = "repository"
+        incident["is_ephemeral"] = False
+        incident["actions_supported"] = True
+        return incident
+
+    from backend.services.live_monitoring_service import live_monitoring_service
+    live_incident = live_monitoring_service.get_incident(incident_id)
+    if live_incident is not None:
+        result = dict(live_incident.get("Incident", {}))  # type: ignore[arg-type]
+        if "Timeline" in live_incident:
+            result["Timeline"] = live_incident["Timeline"]
+        if "AnalystResult" in live_incident:
+            result["AnalystResult"] = live_incident["AnalystResult"]
+        if "AnalystMetadata" in live_incident:
+            result["AnalystMetadata"] = live_incident["AnalystMetadata"]
+        if "DefenderRecommendation" in live_incident:
+            result["DefenderRecommendation"] = live_incident["DefenderRecommendation"]
+        if "ActionDecision" in live_incident:
+            result["ActionDecision"] = live_incident["ActionDecision"]
+
+        result["source"] = "live_simulation"
+        result["is_ephemeral"] = True
+        result["actions_supported"] = True
+        return result
+
+    return None

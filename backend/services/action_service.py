@@ -34,7 +34,9 @@ def _decision_payload(
 def approve_action(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
     stored = repository.get_incident(incident_id)
     if stored is None:
-        return None
+        from backend.services.live_monitoring_service import live_monitoring_service
+        return live_monitoring_service.approve_action(incident_id)
+
     existing = repository.get_action_decision(incident_id)
     if existing is not None:
         if existing.get("Decision") != "approved":
@@ -98,7 +100,9 @@ def approve_action(repository: IncidentRepository, incident_id: str) -> dict[str
 def reject_action(repository: IncidentRepository, incident_id: str) -> dict[str, object] | None:
     stored = repository.get_incident(incident_id)
     if stored is None:
-        return None
+        from backend.services.live_monitoring_service import live_monitoring_service
+        return live_monitoring_service.reject_action(incident_id)
+
     existing = repository.get_action_decision(incident_id)
     if existing is not None:
         if existing.get("Decision") != "rejected":
@@ -106,11 +110,10 @@ def reject_action(repository: IncidentRepository, incident_id: str) -> dict[str,
         return existing
 
     action_id = str(stored.analysis.get("RecommendedActionID", "NO_ACTION"))
-    target = str(stored.analysis.get("Target", ""))
     payload = _decision_payload(
         incident_id=incident_id,
         action_id=action_id,
-        target=target,
+        target=str(stored.analysis.get("Target", "")),
         decision="rejected",
     )
     try:

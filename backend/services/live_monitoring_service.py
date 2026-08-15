@@ -356,5 +356,82 @@ class LiveMonitoringService:
         with self._lock:
             return list(self._incidents[-limit:])
 
+    def get_incident(self, incident_id: str) -> dict[str, object] | None:
+        with self._lock:
+            for incident_result in self._incidents:
+                inc = incident_result.get("Incident")
+                if isinstance(inc, dict) and inc.get("IncidentID") == incident_id:
+                    return dict(incident_result)
+            return None
+
+    def approve_action(self, incident_id: str) -> dict[str, object] | None:
+        from backend.services.action_service import ActionConflictError, _decision_payload
+        with self._lock:
+            for incident_result in self._incidents:
+                inc = incident_result.get("Incident")
+                if isinstance(inc, dict) and inc.get("IncidentID") == incident_id:
+                    existing = incident_result.get("ActionDecision")
+                    if existing is not None:
+                        if isinstance(existing, dict) and existing.get("Decision") != "approved":
+                            raise ActionConflictError("Incident already has a conflicting action decision.")
+                        return dict(existing)  # type: ignore[arg-type]
+
+                    analysis = incident_result.get("AnalystResult", {})
+                    if not isinstance(analysis, dict):
+                        analysis = {}
+                    action_id = str(analysis.get("RecommendedActionID", "NO_ACTION"))
+                    decision_payload = _decision_payload(
+                        incident_id=incident_id,
+                        action_id=action_id,
+                        target=str(analysis.get("Target", "")),
+                        decision="approved",
+                    )
+                    incident_result["ActionDecision"] = decision_payload
+
+                    timeline = list(incident_result.get("Timeline", []))  # type: ignore[arg-type]
+                    timeline.append({
+                        "Timestamp": datetime.now(UTC).isoformat(),
+                        "Event": f"Analyst approved action {action_id}",
+                        "Source": "Analyst",
+                    })
+                    incident_result["Timeline"] = serialize_api_value(timeline)
+                    return decision_payload
+            return None
+
+    def reject_action(self, incident_id: str) -> dict[str, object] | None:
+        from backend.services.action_service import ActionConflictError, _decision_payload
+        with self._lock:
+            for incident_result in self._incidents:
+                inc = incident_result.get("Incident")
+                if isinstance(inc, dict) and inc.get("IncidentID") == incident_id:
+                    existing = incident_result.get("ActionDecision")
+                    if existing is not None:
+                        if isinstance(existing, dict) and existing.get("Decision") != "rejected":
+                            raise ActionConflictError("Incident already has a conflicting action decision.")
+                        return dict(existing)  # type: ignore[arg-type]
+
+                    analysis = incident_result.get("AnalystResult", {})
+                    if not isinstance(analysis, dict):
+                        analysis = {}
+                    action_id = str(analysis.get("RecommendedActionID", "NO_ACTION"))
+                    decision_payload = _decision_payload(
+                        incident_id=incident_id,
+                        action_id=action_id,
+                        target=str(analysis.get("Target", "")),
+                        decision="rejected",
+                    )
+                    incident_result["ActionDecision"] = decision_payload
+
+                    timeline = list(incident_result.get("Timeline", []))  # type: ignore[arg-type]
+                    timeline.append({
+                        "Timestamp": datetime.now(UTC).isoformat(),
+                        "Event": f"Analyst rejected action {action_id}",
+                        "Source": "Analyst",
+                    })
+                    incident_result["Timeline"] = serialize_api_value(timeline)
+                    return decision_payload
+            return None
+
+
 
 live_monitoring_service = LiveMonitoringService()
