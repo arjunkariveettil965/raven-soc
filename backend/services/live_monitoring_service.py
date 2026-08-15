@@ -40,8 +40,11 @@ def _normalize_incident_row(
     correlated_incident: pd.Series,
     classified_incident: pd.Series,
 ) -> dict[str, object]:
+    from backend.services.incident_service import _get_department
     incident = dict(correlated_incident.to_dict())
     incident.update(dict(classified_incident.to_dict()))
+    target_device = incident.get("Target") or incident.get("AffectedDevice") or ""
+    incident["Department"] = _get_department(str(target_device))
     return serialize_api_value(incident)  # type: ignore[return-value]
 
 
@@ -183,6 +186,11 @@ class LiveMonitoringService:
             classified = classifications.iloc[index]
             incident_payload = _normalize_incident_row(correlated, classified)
             incident_id = str(incident_payload.get("IncidentID", "") or "")
+
+            if incident_id:
+                incident_id = f"{incident_id}-{self._seed}"
+                incident_payload["IncidentID"] = incident_id
+
             if not incident_id or incident_id in self._seen_incident_ids:
                 continue
             self._seen_incident_ids.add(incident_id)
@@ -395,6 +403,10 @@ class LiveMonitoringService:
                         "Source": "Analyst",
                     })
                     incident_result["Timeline"] = serialize_api_value(timeline)
+
+                    inc["State"] = "Mitigated"
+                    inc["ContainmentStatus"] = "Isolated"
+                    inc["HostStatus"] = "ISOLATED"
                     return decision_payload
             return None
 

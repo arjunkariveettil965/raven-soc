@@ -97,6 +97,8 @@ def test_unified_incident_resolution_and_actions(client: TestClient):
     live_incidents = client.get("/api/v1/live/incidents").json().get("incidents", [])
     live_id = live_incidents[0]["Incident"]["IncidentID"]
     
+    assert live_id != persisted_id, "Live incident ID must be unique relative to persisted incidents"
+
     # 2. A live simulation incident resolves with source="live_simulation", is_ephemeral=True, actions_supported=True
     get_live_res = client.get(f"/api/v1/incidents/{live_id}")
     assert get_live_res.status_code == 200
@@ -112,11 +114,14 @@ def test_unified_incident_resolution_and_actions(client: TestClient):
     assert app_payload.get("Decision") == "approved"
     assert app_payload.get("ExecutionMode") == "Simulation Only"
     
-    # 4 & 5. Approving a live incident updates its in-memory ActionDecision and Timeline
+    # 4 & 5. Approving a live incident updates its in-memory ActionDecision, Timeline, and State
     get_live_res2 = client.get(f"/api/v1/incidents/{live_id}")
     assert get_live_res2.status_code == 200
     live_details2 = get_live_res2.json().get("Incident", {})
     assert live_details2.get("ActionDecision", {}).get("Decision") == "approved"
+    assert live_details2.get("State") == "Mitigated"
+    assert live_details2.get("ContainmentStatus") == "Isolated"
+    assert live_details2.get("HostStatus") == "ISOLATED"
     timeline = live_details2.get("Timeline", [])
     assert any("Analyst approved action" in str(entry.get("Event", "")) for entry in timeline)
     

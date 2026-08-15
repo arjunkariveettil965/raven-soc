@@ -13,6 +13,8 @@ import { LiveMonitoring } from "./pages/LiveMonitoring";
 import { Scenarios } from "./pages/Scenarios";
 import { Mitre } from "./pages/Mitre";
 import { Settings } from "./pages/Settings";
+import { ReportGenerator } from "./pages/ReportGenerator";
+import { PreventionStrategy } from "./pages/PreventionStrategy";
 
 function App() {
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
@@ -266,6 +268,9 @@ function App() {
       // Refresh incident status
       const details = await ApiService.getIncident(selectedIncidentId);
       setSelectedIncident(details);
+      setIncidents(prev => prev.map(inc =>
+        inc.IncidentID === selectedIncidentId ? details : inc
+      ));
     } catch (err) {
       alert("Failed to approve action");
     }
@@ -279,6 +284,9 @@ function App() {
       // Refresh incident status
       const details = await ApiService.getIncident(selectedIncidentId);
       setSelectedIncident(details);
+      setIncidents(prev => prev.map(inc =>
+        inc.IncidentID === selectedIncidentId ? details : inc
+      ));
     } catch (err) {
       alert("Failed to reject action");
     }
@@ -339,6 +347,10 @@ function App() {
         />
       ) : currentTab === "mitre" ? (
         <Mitre incidents={incidents} />
+      ) : currentTab === "reports" ? (
+        <ReportGenerator />
+      ) : currentTab === "prevention" ? (
+        <PreventionStrategy />
       ) : currentTab === "settings" ? (
         <Settings health={health} />
       ) : (
