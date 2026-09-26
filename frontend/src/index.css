@@ -1,23 +1,23 @@
 :root {
   /* Colors */
-  --bg-main: #080b14;
-  --bg-panel: #111827;
-  --bg-panel-header: #1f2937;
-  --bg-active: #1e293b;
-  --bg-hover: #1f2937;
+  --bg-main: #0a0a0c;
+  --bg-panel: #121214;
+  --bg-panel-header: #1a1a1e;
+  --bg-active: #1e1e24;
+  --bg-hover: #1e1e24;
   
-  --border-color: #374151;
-  --border-focus: #8b5cf6;
+  --border-color: #27272a;
+  --border-focus: #3b82f6;
   
-  --text-main: #9ca3af;
-  --text-bright: #f3f4f6;
-  --text-muted: #6b7280;
+  --text-main: #a1a1aa;
+  --text-bright: #f4f4f5;
+  --text-muted: #52525b;
   
   /* Accents */
-  --accent: #8b5cf6;
-  --accent-bg: rgba(139, 92, 246, 0.1);
-  --accent-border: rgba(139, 92, 246, 0.3);
-  --accent-hover: #a78bfa;
+  --accent: #3b82f6;
+  --accent-bg: rgba(59, 130, 246, 0.1);
+  --accent-border: rgba(59, 130, 246, 0.3);
+  --accent-hover: #60a5fa;
 
   /* Status Colors */
   --critical: #ef4444;
