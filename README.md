@@ -11,7 +11,7 @@ RAVEN-SOC is a local-first, AI-assisted Security Operations Center platform for 
 [![React](https://img.shields.io/badge/React-19.2-cyan?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-Database-lightgrey?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-224%20Passed,%203%20Failed-red?logo=pytest&logoColor=white)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-228%20Passed-success?logo=pytest&logoColor=white)](#-testing)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -36,7 +36,7 @@ RAVEN-SOC utilizes a modular pipeline that isolates log collection, deterministi
 
 *The high-level RAVEN-SOC processing, correlation, and investigation pipeline. The synthetic live-monitoring environment runs isolated from the core production threat log storage.*
 
-The modular architecture can be containerized and deployed to cloud infrastructure such as Microsoft Azure in a future production deployment, but cloud deployment is not required for the current demonstration.
+The modular architecture can be containerized and deployed to cloud infrastructure such as Microsoft Azure in a future production deployment (see our [Azure Deployment Guide](docs/azure_deployment.md)). Cloud deployment is not required for the current demonstration.
 
 ---
 
@@ -178,7 +178,9 @@ tests/test_defender_agent.py ...................                      [ 28%]
 tests/test_detection_rules.py ..................                      [ 36%]
 tests/test_incident_correlation.py .............                      [ 42%]
 ...
-================== 3 failed, 224 passed in 15.38s ==================
+======================= 228 passed in 14.48s =======================
+
+*Note: This reflects a verified project baseline rather than a permanent guarantee.*
 ```
 
 ---

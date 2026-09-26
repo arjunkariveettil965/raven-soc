@@ -13,8 +13,6 @@ import { LiveMonitoring } from "./pages/LiveMonitoring";
 import { Scenarios } from "./pages/Scenarios";
 import { Mitre } from "./pages/Mitre";
 import { Settings } from "./pages/Settings";
-import { ReportGenerator } from "./pages/ReportGenerator";
-import { PreventionStrategy } from "./pages/PreventionStrategy";
 
 function App() {
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
@@ -347,10 +345,6 @@ function App() {
         />
       ) : currentTab === "mitre" ? (
         <Mitre incidents={incidents} />
-      ) : currentTab === "reports" ? (
-        <ReportGenerator />
-      ) : currentTab === "prevention" ? (
-        <PreventionStrategy />
       ) : currentTab === "settings" ? (
         <Settings health={health} />
       ) : (

@@ -40,11 +40,8 @@ def _normalize_incident_row(
     correlated_incident: pd.Series,
     classified_incident: pd.Series,
 ) -> dict[str, object]:
-    from backend.services.incident_service import _get_department
     incident = dict(correlated_incident.to_dict())
     incident.update(dict(classified_incident.to_dict()))
-    target_device = incident.get("Target") or incident.get("AffectedDevice") or ""
-    incident["Department"] = _get_department(str(target_device))
     return serialize_api_value(incident)  # type: ignore[return-value]
 
 
